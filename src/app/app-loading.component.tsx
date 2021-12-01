@@ -10,9 +10,7 @@ export interface ApplicationLoaderProps {
   children: (config: any) => React.ReactElement;
 }
 
-export const LoadFontsTask = (fonts: {
-  [key: string]: number;
-}): Promise<TaskResult> => {
+export const LoadFontsTask = (): Promise<TaskResult> => {
   const message: string = [
     'There is no need to use this task in Bare RN Project.',
     'Use `react-native.config.js',

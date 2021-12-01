@@ -1,26 +1,26 @@
-import React, {useEffect} from 'react';
-import {StyleSheet, View, ActivityIndicator} from 'react-native';
+import {faHeart, faThumbsUp} from '@fortawesome/free-solid-svg-icons';
+import {FontAwesomeIcon} from '@fortawesome/react-native-fontawesome';
+import {FirebaseAuthTypes} from '@react-native-firebase/auth';
+import {FirebaseFirestoreTypes} from '@react-native-firebase/firestore';
 import {
+  Button,
   Card,
   CardElement,
   CardProps,
+  IconElement,
   StyleService,
   Text,
   useStyleSheet,
-  Button,
-  IconElement,
-  Divider,
 } from '@ui-kitten/components';
-import {FontAwesomeIcon} from '@fortawesome/react-native-fontawesome';
-import {faThumbsUp, faHeart} from '@fortawesome/free-solid-svg-icons';
+import React, {useCallback, useEffect, useState} from 'react';
+import {ActivityIndicator, StyleSheet, View} from 'react-native';
 import {TouchableOpacity} from 'react-native-gesture-handler';
-import {ImageOverlay} from './image-overlay.component';
+import {API} from 'src/refactored-services';
+import {Reaction} from 'src/refactored-services/firestore.service';
+import {StorageKeys} from 'src/refactored-services/storage.service';
+import {getDateFromDatabaseDateFormat} from 'src/utils/date';
 import {Action} from '../models/action';
-import {AppStorage} from '../services/app-storage.service';
-import {FirebaseService} from '../services/firebase.service';
-import {ACTION_CARDS} from '../services/types';
-import {UtilService} from '../services/util.service';
-
+import {ImageOverlay} from './image-overlay.component';
 export interface ActionCardProps extends Omit<CardProps, 'children'> {
   data: any;
 }
@@ -43,16 +43,14 @@ const HeartIconClicked = (): IconElement => (
 
 export const ActionCard = (props: ActionCardProps): CardElement => {
   const styles = useStyleSheet(ActionCardStyles);
-
   const [isLiked, setLiked] = React.useState<boolean>(false);
-
+  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
   const [isHearted, setHearted] = React.useState<boolean>(false);
-
-  const [reaction, setReaction] = React.useState<Object>();
-
+  const [reaction, setReaction] = React.useState<Reaction | null>(null);
   const [likes, setLikes] = React.useState<number>(0);
-
   const [hearts, setHearts] = React.useState<number>(0);
+
+  const alreadyReacted = isLiked || isHearted;
 
   const {style, data, ...cardProps} = props;
 
@@ -61,97 +59,104 @@ export const ActionCard = (props: ActionCardProps): CardElement => {
   if (data && data !== 'empty') {
     ACTION = new Action(
       data.id,
-      UtilService.getDateFromDatabaseDateFormat(data.data().date),
+      getDateFromDatabaseDateFormat(data.data().date),
       data.data().text,
     );
   }
 
+  const onSuccess = useCallback(
+    async (documentSnapshot: FirebaseFirestoreTypes.DocumentSnapshot) => {
+      if (user) {
+        let tempLikes = 0;
+        let tempTearts = 0;
+        setReaction(null);
+
+        const snapData = documentSnapshot.data() as any;
+        if (snapData.reacts) {
+          snapData.reacts.forEach((reac: Reaction) => {
+            if (reac.user === user.uid) {
+              setReaction(reac);
+            }
+            if (reac.type === 'like') {
+              tempLikes += 1;
+            } else if (reac.type === 'heart') {
+              tempTearts += 1;
+            }
+          });
+        }
+
+        if (reaction) {
+          setLiked(reaction.type === 'like');
+          setHearted(reaction.type === 'heart');
+        } else {
+          setLiked(false);
+          setHearted(false);
+        }
+
+        setLikes(tempLikes);
+        setHearts(tempTearts);
+      }
+    },
+    [reaction, user],
+  );
+
+  const onLike = useCallback(async () => {
+    if (user) {
+      if (alreadyReacted) {
+        if (isHearted) {
+          await API.firestore.removeActionCardReaction(ACTION.id, reaction);
+        } else if (isLiked) {
+          await API.firestore.updateActionCardReaction(
+            ACTION.id,
+            reaction,
+            'like',
+            user.uid,
+          );
+        }
+      } else {
+        await API.firestore.addActionCardReaction(ACTION.id, 'like', user.uid);
+      }
+    }
+  }, [ACTION.id, alreadyReacted, isHearted, isLiked, reaction, user]);
+
+  const onHeart = useCallback(async () => {
+    if (user) {
+      if (alreadyReacted) {
+        if (isHearted) {
+          await API.firestore.removeActionCardReaction(ACTION.id, reaction);
+        } else if (isLiked) {
+          await API.firestore.updateActionCardReaction(
+            ACTION.id,
+            reaction,
+            'heart',
+            user.uid,
+          );
+        }
+      } else {
+        await API.firestore.addActionCardReaction(ACTION.id, 'heart', user.uid);
+      }
+    }
+  }, [ACTION.id, alreadyReacted, isHearted, isLiked, reaction, user]);
+
   useEffect(() => {
-    if (data && data !== 'empty') {
-      console.log('in');
-      const subscriber = FirebaseService.subscribeForActionCardReacts(
-        ACTION.id,
-        onSuccess,
-      );
-      return async () => await subscriber();
-    }
-  }, [data]);
+    let subscription;
+    (async () => {
+      const firebaseUser = await API.storage.getDataFromStorage<
+        FirebaseAuthTypes.User
+      >(StorageKeys.USER);
+      setUser(firebaseUser);
 
-  const onSuccess = documentSnapshot => {
-    console.log('action');
-    const {uid} = AppStorage.getUser();
-    let likes = 0;
-    let hearts = 0;
-    let react;
-    setReaction(undefined);
-
-    if (documentSnapshot.data().reacts) {
-      documentSnapshot.data().reacts.forEach(reaction => {
-        if (reaction.user === uid) {
-          react = reaction;
-          setReaction(reaction);
-        }
-        if (reaction.type === ACTION_CARDS.REACTS.LIKE) {
-          likes++;
-        } else if (reaction.type === ACTION_CARDS.REACTS.HEART) {
-          hearts++;
-        }
-      });
-    }
-
-    if (react) {
-      setLiked(react.type === ACTION_CARDS.REACTS.LIKE);
-      setHearted(react.type === ACTION_CARDS.REACTS.HEART);
-    } else {
-      setLiked(false);
-      setHearted(false);
-    }
-
-    setLikes(likes);
-    setHearts(hearts);
-  };
-
-  const onLike = () => {
-    if (_alreadyReacted()) {
-      if (isLiked) {
-        FirebaseService.removeActionCardReaction(ACTION.id, reaction);
-      } else if (isHearted) {
-        FirebaseService.updateActionCardReaction(
+      if (data && data !== 'empty') {
+        subscription = await API.firestore.subscribeForActionCardReacts(
           ACTION.id,
-          reaction,
-          ACTION_CARDS.REACTS.LIKE,
+          onSuccess,
         );
       }
-    } else {
-      FirebaseService.addActionCardReaction(
-        ACTION.id,
-        ACTION_CARDS.REACTS.LIKE,
-      );
-    }
-  };
-
-  const onHeart = () => {
-    if (_alreadyReacted()) {
-      if (isHearted) {
-        FirebaseService.removeActionCardReaction(ACTION.id, reaction);
-      } else if (isLiked) {
-        FirebaseService.updateActionCardReaction(
-          ACTION.id,
-          reaction,
-          ACTION_CARDS.REACTS.HEART,
-        );
-      }
-    } else {
-      FirebaseService.addActionCardReaction(
-        ACTION.id,
-        ACTION_CARDS.REACTS.HEART,
-      );
-    }
-  };
-
-  const _alreadyReacted = () => {
-    return isLiked || isHearted;
-  };
+    })();
+    return () => {
+      subscription();
+    };
+  }, [ACTION.id, data, onSuccess]);
 
   if (!data) {
     return (
@@ -249,9 +254,6 @@ const ActionCardStyles = StyleService.create({
     paddingHorizontal: 0,
   },
   activeHeart: {
-    borderRadius: 10,
-  },
-  activeLike: {
     borderRadius: 10,
   },
   activeLike: {

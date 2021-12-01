@@ -1,8 +1,9 @@
-import auth from '@react-native-firebase/auth';
+import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
+import {FirebaseFirestoreTypes} from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
 import {ApplicationProvider, IconRegistry} from '@ui-kitten/components';
 import {EvaIconsPack} from '@ui-kitten/eva-icons';
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,14 +15,17 @@ import {
 import AppIntroSlider from 'react-native-app-intro-slider';
 import {AppearanceProvider} from 'react-native-appearance';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
-import {User} from 'src/models/auth/user';
+import {API} from '../refactored-services';
+import {EmotivityRecord} from '../refactored-services/emotivity.service';
+import {StorageKeys} from '../refactored-services/storage.service';
+import {Logger} from '../utils/logger';
 import {SplashImage} from '../components/splash-image.component';
 import {StatusBar} from '../components/status-bar.component';
 import {AppNavigator} from '../navigation/app.navigator';
 import LoginScreen from '../screens/login/login.component';
-import {AppStorage} from '../services/app-storage.service';
 import {FirebaseService} from '../services/firebase.service';
 import {Mapping, Theme, Theming} from '../services/theme.service';
+import {useMapping, useTheming} from '../utils/theme';
 import {AppIconsPack} from './app-icons-pack';
 import {AppLoading, Task} from './app-loading.component';
 import {default as appTheme} from './app-theme.json';
@@ -103,10 +107,8 @@ const _renderItem = ({item}) => {
   return (
     <View
       style={{
+        ...styles.renderItemContainer,
         backgroundColor: item.backgroundColor,
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
       }}>
       <Image source={item.image} style={styles.image} />
       <Text style={styles.title}>{item.title}</Text>
@@ -140,32 +142,27 @@ const _renderPrevButton = () => {
 
 const App = ({mapping, theme}): React.ReactElement => {
   const [initializing, setInitializing] = useState(true);
-  const [user, setUser] = useState();
+  const [user, setUser] = useState<FirebaseAuthTypes.User>();
   const [, setEmotivityDone] = useState<boolean>(false);
   const [, setTraxivityDone] = useState<boolean>(false);
-  const [isFirst, setIsFirst] = useState(null);
+  const [isFirst, setIsFirst] = useState<boolean | null>(null);
 
-  const [mappingContext, currentMapping] = Theming.useMapping(
-    appMappings,
-    mapping,
-  );
-  const [themeContext, currentTheme] = Theming.useTheming(
-    appThemes,
-    mapping,
-    theme,
-  );
+  const [mappingContext, currentMapping] = useMapping(appMappings, mapping);
+  const [themeContext, currentTheme] = useTheming(appThemes, mapping, theme);
 
   const finalTheme = {...currentTheme, ...appTheme};
 
-  const _onDone = () => {
-    AppStorage.setLaunched();
+  const _onDone = useCallback(async () => {
+    await API.storage.saveToStorage(StorageKeys.HAS_LAUNCHED, false);
     setIsFirst(false);
-  };
+  }, []);
 
-  const hasLaunchedBefore = async () => {
-    const temp = await AppStorage.hasLaunched();
-    setIsFirst(!temp);
-  };
+  const hasLaunchedBefore = useCallback(async () => {
+    const hasLaunched = await API.storage.getDataFromStorage<boolean>(
+      StorageKeys.HAS_LAUNCHED,
+    );
+    setIsFirst(hasLaunched);
+  }, []);
 
   const checkPushPermissions = async () => {
     const enabled = await messaging().hasPermission();
@@ -234,36 +231,77 @@ const App = ({mapping, theme}): React.ReactElement => {
     });
   };
 
-  useEffect(() => {
-    hasLaunchedBefore();
-    let subscriberEmotivity;
-    let subscriberTraxivity;
-
-    createNotificationListeners();
-
-    const subscriberAuth = auth().onAuthStateChanged(user => {
-      if (user) {
-        const user_data: User = {
-          uid: user.uid,
-          displayName: user.displayName,
-          email: user.email,
-          photoURL: user.photoURL,
-        };
-        FirebaseService.setUser(user_data);
-        AppStorage.setUser(user_data);
-        setUser(user_data);
-        checkPushPermissions();
-        if (initializing) {
-          setInitializing(false);
-        }
-        //FirebaseService.getIsEmotivityDoneToday(onSuccess);
-        //FirebaseService.getTraxivitySummaryToday();
-        subscriberEmotivity = FirebaseService.subscribeForEmotivity(onSuccess);
-        subscriberTraxivity = FirebaseService.subscribeForTraxivity(
-          onSuccessTrax,
-        );
+  const onSuccessEmotivitySubscription = useCallback(
+    (data: FirebaseFirestoreTypes.QuerySnapshot) => {
+      if (data.size === 0) {
+        Logger.warn('Found 0 emotivity records for today.');
+        API.emotivity.setEmotivityDetails(false);
+      } else if (data.size > 1) {
+        Logger.warn('Found over 1 emotivity records for today.');
+        data.forEach(snapshot => {
+          setEmotivityDone(true);
+          return API.emotivity.setEmotivityDetails(
+            true,
+            snapshot.data() as EmotivityRecord,
+          );
+        });
+      } else {
+        data.forEach(snapshot => {
+          setEmotivityDone(true);
+          return API.emotivity.setEmotivityDetails(
+            true,
+            snapshot.data() as EmotivityRecord,
+          );
+        });
       }
-    });
+    },
+    [],
+  );
+
+  const onSuccessTraxivitySubscription = useCallback(
+    (snap: FirebaseFirestoreTypes.DocumentSnapshot) => {
+      if (snap.exists && snap.data()) {
+        API.traxivity.getSteptsToday(
+          (snap.data() as {dailyStepGoal: number}).dailyStepGoal,
+          () => setTraxivityDone(true),
+        );
+      } else {
+        API.traxivity.getSteptsToday(5000, () => setTraxivityDone(true));
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    let emotivitySubscription;
+    let traxivitySubscription;
+    let authSubscription;
+    (async () => {
+      await hasLaunchedBefore();
+      await createNotificationListeners();
+
+      authSubscription = auth().onAuthStateChanged(async firebaseUser => {
+        if (firebaseUser) {
+          await API.firestore.storeUserInFirestore(firebaseUser);
+          await API.storage.saveToStorage(StorageKeys.USER, firebaseUser);
+          setUser(firebaseUser);
+          await checkPushPermissions();
+
+          if (initializing) {
+            setInitializing(false);
+          }
+
+          emotivitySubscription = await API.firestore.subscribeForEmotivity(
+            firebaseUser.uid,
+            onSuccessEmotivitySubscription,
+          );
+          traxivitySubscription = await API.firestore.subscribeForTraxivity(
+            firebaseUser.uid,
+            onSuccessTraxivitySubscription,
+          );
+        }
+      });
+    })();
 
     messaging().setBackgroundMessageHandler(async remoteMessage => {
       console.log('Message handled in the background!', remoteMessage);
@@ -273,43 +311,18 @@ const App = ({mapping, theme}): React.ReactElement => {
       console.log('A new FCM message arrived!', JSON.stringify(remoteMessage));
     });
 
-    return async () => {
-      subscriberAuth();
-      (await subscriberEmotivity) && subscriberEmotivity();
-      (await subscriberTraxivity) && subscriberTraxivity();
-      await foreground;
+    return () => {
+      authSubscription.unsubscribe();
+      emotivitySubscription;
+      traxivitySubscription;
+      foreground();
     };
-  }, []);
-
-  const onSuccess = querySnapshot => {
-    if (querySnapshot.size === 0) {
-      console.warn('Found 0 emotivity records for today.');
-      AppStorage.setEmotivityDetails(false);
-      setEmotivityDone(false);
-    } else if (querySnapshot.size > 1) {
-      // TODO
-      console.warn('Found over 1 emotivity records for today.');
-      querySnapshot.forEach(documentSnapshot => {
-        AppStorage.setEmotivityDetails(true, documentSnapshot);
-        setEmotivityDone(true);
-      });
-    } else {
-      querySnapshot.forEach(documentSnapshot => {
-        AppStorage.setEmotivityDetails(true, documentSnapshot);
-        setEmotivityDone(true);
-      });
-    }
-  };
-
-  const onSuccessTrax = documentSnapshot => {
-    if (documentSnapshot.data()) {
-      FirebaseService.getStepsToday(documentSnapshot.data().dailyStepGoal, () =>
-        setTraxivityDone(true),
-      );
-    } else {
-      FirebaseService.getStepsToday(5000, () => setTraxivityDone(true));
-    }
-  };
+  }, [
+    hasLaunchedBefore,
+    initializing,
+    onSuccessEmotivitySubscription,
+    onSuccessTraxivitySubscription,
+  ]);
 
   if (isFirst === null) {
     return (
@@ -466,5 +479,10 @@ const styles = StyleSheet.create({
   },
   buttonPrevText: {
     color: '#7F8283',
+  },
+  renderItemContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
   },
 });
