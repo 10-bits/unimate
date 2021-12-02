@@ -1,36 +1,44 @@
-import React, {useEffect} from 'react';
+import {FirebaseFirestoreTypes} from '@react-native-firebase/firestore';
 import {
-  View,
-  TouchableHighlight,
-  Animated,
-  Platform,
-  Keyboard,
-  ActivityIndicator,
-} from 'react-native';
-import {
+  Avatar,
+  Button,
   CardElement,
   CardProps,
+  Input,
+  Layout,
   StyleService,
   Text,
   useStyleSheet,
-  Button,
-  Input,
-  Layout,
-  Avatar,
 } from '@ui-kitten/components';
-import {ArrowHeadDownIcon, ArrowHeadUpIcon, PaperPlaneIcon} from './icons';
-import {FontAwesomeIcon} from '@fortawesome/react-native-fontawesome';
-import {faCheckCircle} from '@fortawesome/free-solid-svg-icons';
-import {Chat} from './chat.component';
-import {KeyboardAvoidingView} from './keyboard-avoiding-view.component';
-import {Message} from '../models/message';
+import React, {useCallback, useEffect, useState} from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Keyboard,
+  LayoutChangeEvent,
+  Platform,
+  StyleProp,
+  TouchableHighlight,
+  View,
+  ViewStyle,
+} from 'react-native';
 import {ScrollView} from 'react-native-gesture-handler';
-import {UtilService} from '../services/util.service';
+import {API} from 'src/refactored-services';
+import {
+  Conversation,
+  DiaryEntry,
+} from 'src/refactored-services/firestore.service';
+import {getRelativeTime} from 'src/utils/date';
+import {Message} from '../models/message';
 import {DIARY} from '../services/types';
-import {FirebaseService} from '../services/firebase.service';
+import {UtilService} from '../services/util.service';
+import {Chat} from './chat.component';
+import {ArrowHeadDownIcon, ArrowHeadUpIcon, PaperPlaneIcon} from './icons';
+import {KeyboardAvoidingView} from './keyboard-avoiding-view.component';
 
 export interface DiaryEntryProps extends Omit<CardProps, 'children'> {
-  entry: {};
+  entry: DiaryEntry | 'empty';
+  style: StyleProp<ViewStyle>;
 }
 
 const keyboardOffset = (height: number): number =>
@@ -39,146 +47,99 @@ const keyboardOffset = (height: number): number =>
     ios: height,
   });
 
-const initialMessages: Message[] = [
-  new Message('What happened?', '4:00 PM', false),
-  new Message('I cried.', '4:15 PM', true),
-  new Message('Where did this take place?', '4:19 PM', false),
-  new Message('At home.', '4:20 PM', true),
-  new Message('What were your thoughts at the time?', '4:30 PM', false),
-  new Message(
-    "I felt anxious because my thesis submission is on next week and i don't think that i would be able to finish it on time.",
-    '4:35 PM',
-    true,
-  ),
-  new Message(
-    'What were your thoughts after reflecting and how did you feel after that?',
-    '4:30 PM',
-    false,
-  ),
-];
-
-export const DiaryEntry = (props: DiaryEntryProps): CardElement => {
+const DiaryEntry = (props: DiaryEntryProps): CardElement => {
   const styles = useStyleSheet(themedStyles);
 
-  const {entry, style, ...restProps} = props;
+  const {entry, style} = props;
 
-  const [expanded, setExpanded] = React.useState<boolean>(false);
+  const [expanded, setExpanded] = useState<boolean>(false);
+  const [reflected, setReflected] = useState<boolean>(false);
+  const [animation] = useState(new Animated.Value(45));
+  const [maxHeight, setMaxHeight] = useState<number>(200);
+  const [minHeight, setMinHeight] = useState<number>(45);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [message, setMessage] = useState<string | null | undefined>(null);
 
-  const [reflected, setReflected] = React.useState<boolean>(false);
+  const onSuccess = useCallback(
+    (diaryEntrySnapshot: FirebaseFirestoreTypes.DocumentSnapshot) => {
+      const tempNewMessages: Message[] = [];
+      const diaryEntry = diaryEntrySnapshot.data() as DiaryEntry;
 
-  const [animation] = React.useState(new Animated.Value(45));
+      diaryEntry.conversations.forEach(item => {
+        tempNewMessages.push(
+          {text: item.question.text, date: '', reply: false},
+          {
+            text: item.answer.text,
+            date: getRelativeTime(item.answer.time),
+            reply: true,
+          },
+        );
+      });
 
-  const [maxHeight, setMaxHeight] = React.useState<number>(200);
+      if (diaryEntry.status === 'Complete') {
+        setReflected(true);
+      } else {
+        setReflected(false);
+        tempNewMessages.push({
+          text: DIARY.DATABASE.QUESTIONS.Q4,
+          date: '',
+          reply: false,
+        });
+      }
 
-  const [minHeight, setMinHeight] = React.useState<number>(45);
+      setMessages(tempNewMessages);
+    },
+    [],
+  );
 
-  const [visible, setVisible] = React.useState<boolean>(false);
+  const sendButtonEnabled = useCallback(() => !!message && message.length > 0, [
+    message,
+  ]);
 
-  const [messages, setMessages] = React.useState<Message[]>([]);
-
-  const [message, setMessage] = React.useState<string | null | undefined>(null);
-
-  let new_messages = [];
-
-  useEffect(() => {
-    if (entry && entry !== 'empty') {
-      const subscriber = FirebaseService.subscribeForDiaryEntry(
-        entry.id,
-        onSuccess,
-      );
-      return async () => await subscriber();
+  const onSendButtonPress = useCallback(async () => {
+    if (entry !== 'empty') {
+      const conversation: Conversation = {
+        question: {text: DIARY.DATABASE.QUESTIONS.Q4},
+        answer: {text: message as string, time: Date.now()},
+      };
+      await API.firestore.addReflection(entry.id, conversation);
+      Keyboard.dismiss();
     }
-  }, [entry]);
+  }, [entry, message]);
 
-  const onSuccess = entry => {
-    console.log('diary');
-    new_messages = [];
-    entry.data()[DIARY.DATABASE.FIELDS.CONVERSATIONS].forEach(item => {
-      new_messages.push(
-        new Message(
-          item[DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION].text,
-          '',
-          false,
-        ),
-      );
-      new_messages.push(
-        new Message(
-          item[DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER].text,
-          UtilService.getRelativeTime(
-            item[DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER].time,
-          ),
-          true,
-        ),
-      );
-    });
+  const setMaxHeightF = useCallback(
+    (event: LayoutChangeEvent) => setMaxHeight(event.nativeEvent.layout.height),
+    [],
+  );
 
-    if (
-      entry.data()[DIARY.DATABASE.FIELDS.STATUS] ===
-      DIARY.DATABASE.STATUS.COMPLETE
-    ) {
-      setReflected(true);
-    } else {
-      setReflected(false);
-      new_messages.push(new Message(DIARY.DATABASE.QUESTIONS.Q4, '', false));
-    }
+  const setMinHeightF = useCallback(
+    (event: LayoutChangeEvent) => setMinHeight(event.nativeEvent.layout.height),
+    [],
+  );
 
-    setMessages(new_messages);
-  };
-
-  const sendButtonEnabled = (): boolean => {
-    return message && message.length > 0;
-  };
-
-  const onSendButtonPress = (): void => {
-    //setMessages([...messages, new Message(message, 'now', true)]);
-    //setMessage(null);
-    //setReflected(true)
-    FirebaseService.addReflection(entry.id, {
-      [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
-        text: DIARY.DATABASE.QUESTIONS.Q4,
-      },
-      [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
-        text: message,
-        time: FirebaseService.getTimeStamp(),
-      },
-    });
-    Keyboard.dismiss();
-  };
-
-  const toggleTooltip = () => {
-    setVisible(!visible);
-  };
-
-  const setMaxHeightF = event => {
-    setMaxHeight(event.nativeEvent.layout.height);
-  };
-
-  const setMinHeightF = event => {
-    setMinHeight(event.nativeEvent.layout.height);
-  };
-
-  const toggle = () => {
-    let initialValue = expanded ? maxHeight + minHeight : minHeight;
-    let finalValue = expanded ? minHeight : maxHeight + minHeight;
+  const toggle = useCallback(() => {
+    const initialValue = expanded ? maxHeight + minHeight : minHeight;
+    const finalValue = expanded ? minHeight : maxHeight + minHeight;
 
     setExpanded(!expanded);
-
     animation.setValue(initialValue);
     Animated.spring(animation, {toValue: finalValue}).start();
-  };
+  }, [animation, expanded, maxHeight, minHeight]);
 
-  const renderItem = item => {
-    return (
-      <View>
-        <Text style={{fontWeight: 'bold', marginTop: 8}}>{item.question}</Text>
-        <Text>{item.answer}</Text>
-      </View>
-    );
-  };
-
-  const renderIcon = style => (
-    <FontAwesomeIcon size={20} color={'green'} icon={faCheckCircle} />
-  );
+  useEffect(() => {
+    let unsubscribe;
+    (async () => {
+      if (entry && entry !== 'empty') {
+        unsubscribe = await API.firestore.subscribeForDiaryEntry(
+          entry.id,
+          onSuccess,
+        );
+      }
+    })();
+    return () => {
+      unsubscribe();
+    };
+  }, [entry, onSuccess]);
 
   if (!entry) {
     return (
@@ -250,14 +211,6 @@ export const DiaryEntry = (props: DiaryEntryProps): CardElement => {
                   ? ArrowHeadUpIcon(styles.icon)
                   : ArrowHeadDownIcon(styles.icon)}
               </View>
-              {/*<Tooltip
-                            visible={visible}
-                            placement={'top'}
-                            text='Positive!'
-                            onBackdropPress={toggleTooltip}>
-                                <Button onPress={toggleTooltip} icon={renderIcon} appearance='ghost' style={{paddingTop: 5, paddingRight: 0, paddingLeft: 0}}></Button>
-                        </Tooltip>
-                        */}
             </View>
           </TouchableHighlight>
         </View>
@@ -296,6 +249,8 @@ export const DiaryEntry = (props: DiaryEntryProps): CardElement => {
     </Layout>
   );
 };
+
+export default DiaryEntry;
 
 const themedStyles = StyleService.create({
   headerText: {

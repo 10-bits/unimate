@@ -1,7 +1,5 @@
-export class Message {
-  constructor(
-    readonly text: string,
-    readonly date: string | null,
-    readonly reply: boolean,
-
+export interface Message {
+  text: string;
+  date: string | null;
+  reply: boolean;
 }

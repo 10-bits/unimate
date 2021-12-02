@@ -12,6 +12,22 @@ export interface Reaction {
   user: string;
 }
 
+export interface DiaryEntry {
+  id: string;
+  status: 'Complete' | 'Incomplete';
+  conversations: Conversation[];
+}
+
+export interface Conversation {
+  question: ConversationItem;
+  answer: ConversationItem;
+}
+
+export interface ConversationItem {
+  text: string;
+  time?: number;
+}
+
 export class FirestoreService {
   async storeUserInFirestore(user: FirebaseAuthTypes.User) {
     try {
@@ -167,5 +183,26 @@ export class FirestoreService {
       .collection('action_cards')
       .doc(docId)
       .onSnapshot(onSuccess, error => Logger.error(error.message));
+  }
+
+  async subscribeForDiaryEntry(
+    docId: string,
+    onNext: (snapshot: FirebaseFirestoreTypes.DocumentSnapshot) => void,
+  ) {
+    return firestore()
+      .collection('diary_entries')
+      .doc(docId)
+      .onSnapshot(onNext, error => Logger.error(error.message));
+  }
+
+  async addReflection(docId: string, question: Conversation) {
+    return firestore()
+      .collection('diary_entries')
+      .doc(docId)
+      .update({
+        status: 'Complete',
+        conversations: firebase.firestore.FieldValue.arrayUnion(question),
+      })
+      .catch(error => Logger.error(error.message));
   }
 }
