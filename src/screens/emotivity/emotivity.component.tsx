@@ -1,5 +1,6 @@
 import {faInfoCircle} from '@fortawesome/free-solid-svg-icons';
 import {FontAwesomeIcon} from '@fortawesome/react-native-fontawesome';
+import { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import {
   Button,
   Divider,
@@ -18,7 +19,12 @@ import AppIntroSlider from 'react-native-app-intro-slider';
 import {ProgressChart} from 'react-native-chart-kit';
 import {ScrollView} from 'react-native-gesture-handler';
 import MotionSlider from 'react-native-motion-slider';
-import {DiaryEntry} from '../../components/diary-entry.component';
+import { API } from 'src/refactored-services';
+import { EmotivityRecord } from 'src/refactored-services/emotivity.service';
+import { Conversation, DiaryEntryDoc } from 'src/refactored-services/firestore.service';
+import { StorageKeys } from 'src/refactored-services/storage.service';
+import { getDateToday, getDateWeekAgo } from 'src/utils/date';
+import DiaryEntry from '../../components/diary-entry.component';
 import {
   ArrowIosBackIcon,
   ArrowIosForwardIcon,
@@ -131,7 +137,7 @@ export class EmotivityScreen extends React.Component {
       sadness: 0,
       stress: 0,
       tired: 0,
-      done: AppStorage.getEmotivityDetails().status,
+      done: API.emotivity.getEmotivityDetails().status,
       q1: '',
       q2: '',
       q3: '',
@@ -156,34 +162,19 @@ export class EmotivityScreen extends React.Component {
     };
   }
 
-  componentDidMount() {
-    FirebaseService.getTodayDiaryEntry(this.onSuccess);
-    FirebaseService.getEmotivityData(
-      UtilService.getDateWeekAgo(DATE.FORMATS.DB_UNIX),
-      UtilService.getDateToday(DATE.FORMATS.DB_UNIX),
+  async componentDidMount() {
+    const user = await API.storage.getDataFromStorage<FirebaseAuthTypes.User>(StorageKeys.USER);
+    this.setState({user});
+    await API.firestore.getTodayDiaryEntry(this.onSuccess, this.state.user.uid);
+    await API.firestore.getEmotivtyData(
+      this.state.user.uid,
+      getDateWeekAgo(DATE.FORMATS.DB_UNIX),
+      getDateToday(DATE.FORMATS.DB_UNIX),
       this.onSuccessMoodTracking,
       this.onSuccessDiaryEntry,
     );
-    this.setState({
-      anger: AppStorage.getEmotivityDetails().record[
-        EMOTIVITY.DATABASE.FIELDS.ANGER
-      ],
-      anxiety: AppStorage.getEmotivityDetails().record[
-        EMOTIVITY.DATABASE.FIELDS.ANXIETY
-      ],
-      happiness: AppStorage.getEmotivityDetails().record[
-        EMOTIVITY.DATABASE.FIELDS.HAPPINESS
-      ],
-      sadness: AppStorage.getEmotivityDetails().record[
-        EMOTIVITY.DATABASE.FIELDS.SADNESS
-      ],
-      stress: AppStorage.getEmotivityDetails().record[
-        EMOTIVITY.DATABASE.FIELDS.STRESS
-      ],
-      tired: AppStorage.getEmotivityDetails().record[
-        EMOTIVITY.DATABASE.FIELDS.TIRED
-      ],
-    });
+    const emotivityRecord = API.emotivity.getEmotivityDetails();
+    this.setState(emotivityRecord);
   }
 
   onSuccess = querySnapshot => {
@@ -309,13 +300,6 @@ export class EmotivityScreen extends React.Component {
   };
 
   onDrop = key => {
-    /*if (this.vals[key].value === '5') {
-      this.vals[key].label = labels[labels.length-1];
-    } else if (this.vals[key].value === '0') {
-      this.vals[key].label = 'None';
-    } else {
-      this.vals[key].label = labels[Math.floor(this.vals[key].value/(5/labels.length))];
-    }*/
     this.setState(this.vals);
   };
 
@@ -367,7 +351,7 @@ export class EmotivityScreen extends React.Component {
     );
   };
 
-  onMoodScoreSubmit = () => {
+  onMoodScoreSubmit = async () => {
     // Get all the negatives that are >= 3
 
     const moods: String[] = [];
@@ -409,14 +393,15 @@ export class EmotivityScreen extends React.Component {
 
     this.togglePromptModal();
 
-    FirebaseService.addMoodTrackingRecord({
-      [EMOTIVITY.DATABASE.FIELDS.ANGER]: this.state.anger,
-      [EMOTIVITY.DATABASE.FIELDS.ANXIETY]: this.state.anxiety,
-      [EMOTIVITY.DATABASE.FIELDS.HAPPINESS]: this.state.happiness,
-      [EMOTIVITY.DATABASE.FIELDS.SADNESS]: this.state.sadness,
-      [EMOTIVITY.DATABASE.FIELDS.STRESS]: this.state.stress,
-      [EMOTIVITY.DATABASE.FIELDS.TIRED]: this.state.tired,
-    });
+    const emotivity: EmotivityRecord = {
+      anger: this.state.anger,
+      anxiety: this.state.anxiety,
+      happiness: this.state.happiness,
+      sadness: this.state.sadness,
+      stress: this.state.stress,
+      tired: this.state.tired,
+    }
+    await API.firestore.adMoodTrackingRecord(emotivity, this.state.user.uid);
   };
 
   renderPromptModal = () => (
@@ -472,30 +457,6 @@ export class EmotivityScreen extends React.Component {
     this.setState({selectedIndex: index});
   };
 
-  /*renderWithoutHeader = ({ item }) => {
-    return (
-      <Card>
-        <Text style={{fontWeight: 'bold'}}>Location: </Text><Text>Home</Text>
-        <Text style={{fontWeight: 'bold', marginTop: 8}}>What happened: </Text><Text>I cried.</Text>
-        <Text style={{fontWeight: 'bold', marginTop: 8}}>Thoughts at the time: </Text><Text>Felt very sad and anxious.</Text>
-        <Text style={{fontWeight: 'bold', marginTop: 8}}>Thoughts after reflecting: </Text><Text>Better.</Text>
-        <Text style={{fontWeight: 'bold', marginTop: 8}}>How you felt after reflecting: </Text><Text>Better.</Text>
-      </Card>
-    )
-  }*/
-
-  /*renderWithHeader = ({ item }) => {
-    return (
-      <Card style={{marginBottom: 10}} header={() => <Text style={{fontWeight: 'bold', fontSize: 16, marginHorizontal: 20, marginVertical: 10}}>{item.date}</Text>}>
-        <Text style={{fontWeight: 'bold'}}>Location: </Text><Text>Home</Text>
-        <Text style={{fontWeight: 'bold', marginTop: 8}}>What happened: </Text><Text>I cried.</Text>
-        <Text style={{fontWeight: 'bold', marginTop: 8}}>Thoughts at the time: </Text><Text>Felt very sad and anxious.</Text>
-        <Text style={{fontWeight: 'bold', marginTop: 8}}>Thoughts after reflecting: </Text><Text>Better.</Text>
-        <Text style={{fontWeight: 'bold', marginTop: 8}}>How you felt after reflecting: </Text><Text>Better.</Text>
-      </Card>
-    )
-  }*/
-
   toggleTooltip = () => {
     this.setState({visible: !this.state.visible});
   };
@@ -510,18 +471,6 @@ export class EmotivityScreen extends React.Component {
         <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 8}}>
           📝 New Diary Entry
         </Text>
-        {/*<Tooltip
-            visible={this.state.visible}
-            placement={'bottom'}
-            text='Positive!'
-            onBackdropPress={this.toggleTooltip}>
-                <Button onPress={this.toggleTooltip} icon={this.renderIcon} appearance='ghost' style={{paddingTop: 5, paddingRight: 0, paddingLeft: 0}}></Button>
-        </Tooltip>*/}
-      </View>
-
-      {/*<Text style={{textAlign: 'justify', marginBottom: 8}}>
-        Explain the role of the diary entry briefly. about reflecting etc.
-      </Text>*/}
       <Input
         style={styles.input}
         textStyle={styles.inputText}
@@ -594,13 +543,6 @@ export class EmotivityScreen extends React.Component {
         <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 8}}>
           🤔 Today's Reflection
         </Text>
-        {/*<Tooltip
-            visible={this.state.visible}
-            placement={'bottom'}
-            text='Positive!'
-            onBackdropPress={this.toggleTooltip}>
-                <Button onPress={this.toggleTooltip} icon={this.renderIcon} appearance='ghost' style={{paddingTop: 5, paddingRight: 0, paddingLeft: 0}}></Button>
-        </Tooltip>*/}
       </View>
 
       <Text style={{textAlign: 'justify', marginBottom: 8}}>
@@ -653,102 +595,114 @@ export class EmotivityScreen extends React.Component {
     </Layout>
   );
 
-  _sendAddDiaryRequest = () => {
+  _sendAddDiaryRequest = async () => {
     const convos: Object[] = [];
     if (this.state.q1) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q1,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+       answer: {
           text: this.state.q1,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
     if (this.state.q2) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q2,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+       answer: {
           text: this.state.q2,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
     if (this.state.q3) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q3,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+       answer: {
           text: this.state.q3,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
-    FirebaseService.addNewDiaryEntry(DIARY.DATABASE.STATUS.INCOMPLETE, [
-      convos,
-    ]);
+
+    const entryDoc: DiaryEntryDoc = {
+       user: this.state.user.uid,
+       conversations: convos as Conversation[],
+       status: 'Incomplete',
+       date: getDateToday('')
+    }
+
+    await API.firestore.addNewDiaryEntry(entryDoc);
   };
 
-  /*_sendReflectRequest = (id) => {
+  _sendReflectRequest = (id) => {
     FirebaseService.addReflection(id, [{
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: { text: DIARY.DATABASE.QUESTIONS.Q4 },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: { text: this.state.q4, time: FirebaseService.getTimeStamp() }
+        question: { text: DIARY.DATABASE.QUESTIONS.Q4 },
+       answer: { text: this.state.q4, time: Date.now() }
       }
     ]);
-  }*/
+  }
 
-  reflectSubmitButton = () => {
+  reflectSubmitButton = async () => {
     const convos: Object[] = [];
     if (this.state.q1) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q1,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+        answer: {
           text: this.state.q1,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
     if (this.state.q2) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q2,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+       answer: {
           text: this.state.q2,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
     if (this.state.q3) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q3,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+       answer: {
           text: this.state.q3,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
-    FirebaseService.addNewDiaryEntry(DIARY.DATABASE.STATUS.COMPLETE, [
-      ...convos,
-      {
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
-          text: DIARY.DATABASE.QUESTIONS.Q4,
+    const entryDoc: DiaryEntryDoc = {
+      user: this.state.user.uid,
+      conversations: [
+        ...(convos as Conversation[]),
+        {
+          question: {
+            text: DIARY.DATABASE.QUESTIONS.Q4,
+          },
+          answer: {
+            text: this.state.q4,
+            time: Date.now(),
+          },
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
-          text: this.state.q4,
-          time: FirebaseService.getTimeStamp(),
-        },
-      },
-    ]);
-    FirebaseService.getTodayDiaryEntry(this.onSuccess);
+      ],
+      status: 'Complete',
+      date: getDateToday('')
+    }
+    await API.firestore.addNewDiaryEntry(entryDoc)
+    await API.firestore.getTodayDiaryEntry(this.onSuccess, this.state.user.uid);
     this.setState({reflect_visible: !this.state.reflect_visible});
   };
 
@@ -771,9 +725,11 @@ export class EmotivityScreen extends React.Component {
   };
 
   laterButton = () => {
-    this._sendAddDiaryRequest();
-    FirebaseService.getTodayDiaryEntry(this.onSuccess);
-    this.setState({reflect_visible: false});
+    if(this.state.user){
+      this._sendAddDiaryRequest();
+      API.firestore.getTodayDiaryEntry(this.onSuccess, this.state.user.uid);
+      this.setState({reflect_visible: false});
+    }
   };
 
   backButton = () => {
@@ -781,9 +737,11 @@ export class EmotivityScreen extends React.Component {
   };
 
   reflectLaterButton = () => {
-    this._sendAddDiaryRequest();
-    FirebaseService.getTodayDiaryEntry(this.onSuccess);
-    this.setState({questions_visible: false});
+    if(this.state.user){
+      this._sendAddDiaryRequest();
+      API.firestore.getTodayDiaryEntry(this.onSuccess, this.state.user.uid);
+      this.setState({questions_visible: false});
+    }
   };
 
   diarySkipButton = () => {
@@ -848,7 +806,6 @@ export class EmotivityScreen extends React.Component {
                   Mood Summary
                 </Text>
                 <Divider style={styles.divider} />
-                {/*<Text style={{fontWeight: 'bold', fontSize: 20, marginBottom: 16, textAlign: 'center'}}>Your Mood</Text>*/}
                 <ProgressChart
                   data={{
                     labels: [
@@ -931,27 +888,6 @@ export class EmotivityScreen extends React.Component {
                     marginLeft: -20,
                   }}
                 />
-                {/* <Divider style={styles.divider}/>
-                <Text style={{fontWeight: 'bold', fontSize: 20, marginBottom: 16, textAlign: 'center'}}>Diary Entry</Text>
-                <Modal backdropStyle={styles.backdrop} visible={this.state.questions_visible}>
-                  {this.renderQuestionsModal()}
-                </Modal>
-                <Modal backdropStyle={styles.backdrop} visible={this.state.prompt_visible}>
-                  {this.renderPromptModal()}
-                </Modal>
-                <Modal backdropStyle={styles.backdrop} visible={this.state.reflect_visible}>
-                  {this.renderReflectModal()}
-                </Modal>
-                <View style={{marginBottom: screenHeight/3.5}}>
-                  <DiaryEntry
-                    entry={this.state.diaryData}
-                  />
-                </View> */}
-                {/*<List
-                  style={{marginBottom: screenHeight/3.5}}
-                  data={['I felt anxious because my thesis submission is on next week and i don\'t think that i would be able to finish it on time.']}
-                  renderItem={this.renderWithoutHeader}
-                />*/}
               </ScrollView>
             </Tab>
             <Tab
@@ -1153,49 +1089,6 @@ export class EmotivityScreen extends React.Component {
             leftControl={this.renderDrawerAction()}
           />
           <Divider />
-          {/*<ScrollView>
-            <Text category={'h5'} style={styles.title}>How are you feeling today?</Text>
-            <MoodSelector
-              title='Happiness'
-              group='facebook'
-              reactions={['like', 'love', 'haha', 'wow', 'sad']}
-              onChange={this.handleChangeHappiness}
-              value={this.state.happiness}
-              style={styles.slider}
-            />
-            <MoodSelector
-              title='Anger'
-              group='facebook'
-              reactions={['like', 'love', 'haha', 'wow', 'sad']}
-              onChange={this.handleChangeAnger}
-              value={this.state.anger}
-              style={styles.slider}
-            />
-            <MoodSelector
-              title='Anxiety'
-              group='facebook'
-              reactions={['like', 'love', 'haha', 'wow', 'sad']}
-              onChange={this.handleChangeAnxiety}
-              value={this.state.anxiety}
-              style={styles.slider}
-            />
-            <MoodSelector
-              title='Sadness'
-              group='facebook'
-              reactions={['like', 'love', 'haha', 'wow', 'sad']}
-              onChange={this.handleChangeSadness}
-              value={this.state.sadness}
-              style={styles.slider}
-            />
-            <MoodSelector
-              title='Stress'
-              group='facebook'
-              reactions={['like', 'love', 'haha', 'wow', 'sad']}
-              onChange={this.handleChangeStress}
-              value={this.state.stress}
-              style={styles.slider}
-            />
-          </ScrollView>*/}
           <AppIntroSlider
             slides={moods}
             renderItem={this.emotivitySlide}

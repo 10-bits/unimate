@@ -8,8 +8,8 @@ export interface EmotivityRecord {
 }
 
 export class EmotivityService {
-  private emotivityStatus: boolean = false;
-  private emotivityRecord: EmotivityRecord = {
+  private _emotivityStatus: boolean = false;
+  private _emotivityRecord: EmotivityRecord = {
     anger: 0,
     anxiety: 0,
     happiness: 0,
@@ -19,9 +19,15 @@ export class EmotivityService {
   };
 
   setEmotivityDetails(status: boolean, document?: EmotivityRecord) {
-    this.emotivityStatus = status;
+    this._emotivityStatus = status;
     if (status && document) {
-      this.emotivityRecord = document;
+      this._emotivityRecord = document;
     }
   }
+
+  get emoti(){
+    return this._emotivityRecord;
+  }
+
+  getEmo
 }

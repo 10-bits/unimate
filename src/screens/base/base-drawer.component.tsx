@@ -1,8 +1,10 @@
-import React from 'react';
-import {BackHandler, StyleSheet, View} from 'react-native';
+import AsyncStorage from '@react-native-community/async-storage';
+import {GoogleSignin} from '@react-native-community/google-signin';
+import auth from '@react-native-firebase/auth';
 import {
   Avatar,
   Button,
+  Card,
   Divider,
   Drawer,
   DrawerElement,
@@ -11,29 +13,23 @@ import {
   DrawerHeaderFooterElement,
   Layout,
   MenuItemType,
-  Text,
-  Card,
   Modal,
+  Text,
 } from '@ui-kitten/components';
+import React from 'react';
+import {StyleSheet, View} from 'react-native';
+import Config from 'react-native-config';
+import RNRestart from 'react-native-restart';
+import {openBrowserAsync} from 'src/utils/browser';
 import {AboutIcon, GlobeIcon} from '../../components/icons';
 import {SafeAreaLayout} from '../../components/safe-area-layout.component';
-import {WebBrowserService} from '../../services/web-browser.service';
-import {AppInfoService} from '../../services/app-info.service';
 import {AppStorage} from '../../services/app-storage.service';
-import auth from '@react-native-firebase/auth';
-import AsyncStorage from '@react-native-community/async-storage';
-import {GoogleSignin, statusCodes} from '@react-native-community/google-signin';
-import {UtilService} from '../../services/util.service';
-import RNRestart from 'react-native-restart';
-import Config from 'react-native-config';
 
 const DATA: MenuItemType[] = [
   {title: 'About Unimate', icon: AboutIcon},
   {title: 'Visit Unimate Website', icon: GlobeIcon},
   {title: 'Robert Gordon University Website', icon: GlobeIcon},
 ];
-
-const version: string = AppInfoService.getVersion();
 
 export const BaseDrawer = ({navigation}): DrawerElement => {
   const onItemSelect = (index: number): void => {
@@ -44,12 +40,12 @@ export const BaseDrawer = ({navigation}): DrawerElement => {
         return;
       }
       case 1: {
-        WebBrowserService.openBrowserAsync('https://unimate.app/');
+        openBrowserAsync('https://unimate.app/');
         navigation.toggleDrawer();
         return;
       }
       case 2: {
-        WebBrowserService.openBrowserAsync('http://www.comp.rgu.ac.uk/');
+        openBrowserAsync('http://www.comp.rgu.ac.uk/');
         navigation.toggleDrawer();
         return;
       }

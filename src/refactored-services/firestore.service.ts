@@ -5,6 +5,7 @@ import firestore, {
 import {getDateToday} from '../utils/date';
 import {Notification} from '../models/notification';
 import {Logger} from '../utils/logger';
+import {EmotivityRecord} from './emotivity.service';
 
 export type REACTION_TYPE = 'heart' | 'like';
 export interface Reaction {
@@ -12,10 +13,19 @@ export interface Reaction {
   user: string;
 }
 
+export type DiaryEntryStatusType = 'Complete' | 'Incomplete';
+
 export interface DiaryEntry {
   id: string;
-  status: 'Complete' | 'Incomplete';
+  status: DiaryEntryStatusType;
   conversations: Conversation[];
+}
+
+export interface DiaryEntryDoc {
+  user: string;
+  conversations: Conversation[];
+  status: DiaryEntryStatusType;
+  date: string | number;
 }
 
 export interface Conversation {
@@ -26,6 +36,11 @@ export interface Conversation {
 export interface ConversationItem {
   text: string;
   time?: number;
+}
+
+export interface EmotivityRecordDoc extends EmotivityRecord {
+  date: string | number;
+  user: string;
 }
 
 export class FirestoreService {
@@ -175,7 +190,7 @@ export class FirestoreService {
     }
   }
 
-  async subscribeForActionCardReacts(
+  subscribeForActionCardReacts(
     docId: string,
     onSuccess: (snap: FirebaseFirestoreTypes.DocumentSnapshot) => void,
   ) {
@@ -185,7 +200,7 @@ export class FirestoreService {
       .onSnapshot(onSuccess, error => Logger.error(error.message));
   }
 
-  async subscribeForDiaryEntry(
+  subscribeForDiaryEntry(
     docId: string,
     onNext: (snapshot: FirebaseFirestoreTypes.DocumentSnapshot) => void,
   ) {
@@ -195,7 +210,7 @@ export class FirestoreService {
       .onSnapshot(onNext, error => Logger.error(error.message));
   }
 
-  async addReflection(docId: string, question: Conversation) {
+  addReflection(docId: string, question: Conversation) {
     return firestore()
       .collection('diary_entries')
       .doc(docId)
@@ -204,5 +219,57 @@ export class FirestoreService {
         conversations: firebase.firestore.FieldValue.arrayUnion(question),
       })
       .catch(error => Logger.error(error.message));
+  }
+
+  addNewDiaryEntry(data: DiaryEntryDoc) {
+    return firestore()
+      .collection('diary_entries')
+      .add(data);
+  }
+
+  getTodayDiaryEntry(onSuccess, userId: string) {
+    return firestore()
+      .collection('diary_entries')
+      .where('user', '==', userId)
+      .where('date', '==', getDateToday(''))
+      .get()
+      .then(onSuccess, error => Logger.error(error.message));
+  }
+
+  adMoodTrackingRecord(emotivityRecord: EmotivityRecord, userId: string) {
+    const emotivityDoc: EmotivityRecordDoc = {
+      ...emotivityRecord,
+      date: getDateToday(''),
+      user: userId,
+    };
+
+    return firestore()
+      .collection('mood_tracking')
+      .add(emotivityDoc)
+      .then(doc => Logger.debug('Document written with id', doc.id))
+      .then(error => Logger.error('Error adding document', error.message));
+  }
+
+  getEmotivtyData(
+    userId: string,
+    startDate: string | number,
+    endDate: string | number,
+    onSuccessMood,
+    onSuccessDiary,
+  ) {
+    firestore()
+      .collection('mood_tracking')
+      .where('user', '==', userId)
+      .where('date', '>=', startDate)
+      .where('date', '<=', endDate)
+      .get()
+      .then(onSuccessMood, error => Logger.error(error.message));
+    firestore()
+      .collection('diary_entries')
+      .where('user', '==', userId)
+      .where('date', '>=', startDate)
+      .where('date', '<=', endDate)
+      .get()
+      .then(onSuccessDiary, error => Logger.error(error.message));
   }
 }
