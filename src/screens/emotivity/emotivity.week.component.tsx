@@ -4,9 +4,9 @@ import React, {useEffect, useState} from 'react';
 import {Dimensions, StyleSheet} from 'react-native';
 import {ProgressChart} from 'react-native-chart-kit';
 import {ScrollView} from 'react-native-gesture-handler';
-import {API} from 'src/refactored-services';
-import {StorageKeys} from 'src/refactored-services/storage.service';
-import {getDateWeekAgo, getDateYesterday} from 'src/utils/date';
+import {API} from '../../refactored-services';
+import {StorageKeys} from '../../refactored-services/storage.service';
+import {getDateWeekAgo, getDateYesterday} from '../../utils/date';
 import {DATE, EMOTIVITY} from '../../services/types';
 
 export const EmotivityWeekScreen = ({navigation}): React.ReactElement => {

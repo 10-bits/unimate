@@ -2,8 +2,9 @@ import {Button, Divider, Input, Layout, Text} from '@ui-kitten/components';
 import React, {useEffect} from 'react';
 import {FlatList, StyleSheet} from 'react-native';
 import {ScrollView} from 'react-native-gesture-handler';
-import {AppStorage} from '../../services/app-storage.service';
-import {UtilService} from '../../services/util.service';
+import {API} from '../../refactored-services';
+import {StorageKeys} from '../../refactored-services/storage.service';
+import {getDateToday, getDateTodayNoFormat} from '../../utils/date';
 import {SaythanxItem} from './saythanx.item.component';
 
 // const useInputState = (initialValue = '') => {
@@ -17,20 +18,20 @@ export const SaythanxTodayScreen = ({navigation}): React.ReactElement => {
   const [thanksInput, setThanksInput] = React.useState<string>('');
 
   const addSayThanks = async () => {
-    const temp = await AppStorage.getSayThanksList();
+    const temp = await API.storage.getDataFromStorage(StorageKeys.SAYTHANX_KEY);
     if (temp != null && temp.length > 0) {
-      const userInput = [{text: thanksInput, date: UtilService.getDateToday()}];
+      const userInput = [{text: thanksInput, date: getDateToday()}];
       const updatedArr = userInput.concat(temp);
-      await AppStorage.saveSayThanksList(updatedArr);
+      await API.storage.saveToStorage(StorageKeys.SAYTHANX_KEY, updatedArr);
     } else {
-      const tempIni = [{text: thanksInput, date: UtilService.getDateToday()}];
-      await AppStorage.saveSayThanksList(tempIni);
+      const tempIni = [{text: thanksInput, date: getDateToday()}];
+      await API.storage.saveToStorage(StorageKeys.SAYTHANX_KEY, tempIni);
     }
     setThanksInput('');
     setSayThanksListFromLocalStorage();
     //Mark emotivity Completed for today
-    AppStorage.markSayThanxTodayCompleted({
-      date: UtilService.getDateTodayNoFormat(),
+    await API.storage.saveToStorage(StorageKeys.SAYTHANX_FAILLED, {
+      date: getDateTodayNoFormat(),
       action: 'Completed',
     });
   };
@@ -48,11 +49,13 @@ export const SaythanxTodayScreen = ({navigation}): React.ReactElement => {
 
     // Return the function to unsubscribe from the event so it gets removed on unmount
     return unsubscribe;
-  }, []);
+  }, [navigation]);
 
   const setSayThanksListFromLocalStorage = async () => {
-    const initialSayThanksList = await AppStorage.getSayThanksList();
-    if (initialSayThanksList != null) {
+    const initialSayThanksList = await API.storage.getDataFromStorage<any>(
+      StorageKeys.SAYTHANX_KEY,
+    );
+    if (initialSayThanksList !== null) {
       setSayThanksList(initialSayThanksList);
     }
   };
@@ -74,7 +77,7 @@ export const SaythanxTodayScreen = ({navigation}): React.ReactElement => {
             marginTop: 20,
             textAlign: 'center',
           }}>
-          {UtilService.getDateToday()}
+          {`${getDateToday()}`}
         </Text>
         <Divider
           style={{width: '100%', alignSelf: 'center', marginVertical: 10}}
@@ -113,8 +116,7 @@ export const SaythanxTodayScreen = ({navigation}): React.ReactElement => {
           disabled={thanksInput.length == 0}>
           Say Thank You
         </Button>
-        {sayThanksList.filter(e => e.date === UtilService.getDateToday())
-          .length > 0 && (
+        {sayThanksList.filter(e => e.date === getDateToday()).length > 0 && (
           <Text
             style={{
               marginTop: '10%',
@@ -125,22 +127,20 @@ export const SaythanxTodayScreen = ({navigation}): React.ReactElement => {
             Today
           </Text>
         )}
-        {sayThanksList.filter(e => e.date === UtilService.getDateToday())
-          .length > 0 && (
+        {sayThanksList.filter(e => e.date === getDateToday()).length > 0 && (
           <FlatList
             data={sayThanksList}
             style={{marginTop: '5%'}}
             // data={AppStorage.getToDoList()}
             keyExtractor={(item, index) => index.toString()}
             renderItem={({item, index}) => {
-              if (item.date == UtilService.getDateToday()) {
+              if (item.date == getDateToday()) {
                 return <SaythanxItem item={item} />;
               }
             }}
           />
         )}
-        {sayThanksList.filter(e => e.date === UtilService.getDateToday())
-          .length == 0 && (
+        {sayThanksList.filter(e => e.date === getDateToday()).length == 0 && (
           <Text
             style={{
               marginTop: '10%',

@@ -15,10 +15,10 @@ import {
 import React, {useCallback, useEffect, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View} from 'react-native';
 import {TouchableOpacity} from 'react-native-gesture-handler';
-import {API} from 'src/refactored-services';
-import {Reaction} from 'src/refactored-services/firestore.service';
-import {StorageKeys} from 'src/refactored-services/storage.service';
-import {getDateFromDatabaseDateFormat} from 'src/utils/date';
+import {API} from '../refactored-services';
+import {Reaction} from '../refactored-services/firestore.service';
+import {StorageKeys} from '../refactored-services/storage.service';
+import {getDateFromDatabaseDateFormat} from '../utils/date';
 import {Action} from '../models/action';
 import {ImageOverlay} from './image-overlay.component';
 export interface ActionCardProps extends Omit<CardProps, 'children'> {

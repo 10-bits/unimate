@@ -1,14 +1,16 @@
 import {GoogleSignin} from '@react-native-community/google-signin';
+import {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import {Layout} from '@ui-kitten/components';
-import React, {useEffect} from 'react';
+import React, {useCallback, useEffect} from 'react';
 import {Alert, Dimensions, StyleSheet, View} from 'react-native';
 import {BarChart} from 'react-native-chart-kit';
 import {ScrollView} from 'react-native-gesture-handler';
 import GoogleFit, {Scopes} from 'react-native-google-fit';
 import * as Progress from 'react-native-progress';
+import {API} from 'src/refactored-services';
+import {StorageKeys} from 'src/refactored-services/storage.service';
 import {getCals, getDists, getSteps} from '../../api/googleFitApi';
 import TraxivityDataTab from '../../components/traxivity-data.component';
-import {AppStorage} from '../../services/app-storage.service';
 
 export const TraxivityTodayScreen = ({}): React.ReactElement => {
   const screenWidth = Dimensions.get('window').width;
@@ -16,7 +18,7 @@ export const TraxivityTodayScreen = ({}): React.ReactElement => {
 
   const tab: Object[] = [];
 
-  const [] = React.useState<Object>(AppStorage.getUser());
+  const [user, setUser] = React.useState<FirebaseAuthTypes.User | null>();
   const [goal] = React.useState<number>(0);
   const [steps, setSteps] = React.useState<number>(0);
   const [cals, setCals] = React.useState<number>(0);
@@ -24,57 +26,7 @@ export const TraxivityTodayScreen = ({}): React.ReactElement => {
 
   const useForceUpdate = () => React.useState()[1];
 
-  useEffect(() => {
-    const options = {
-      scopes: [
-        Scopes.FITNESS_ACTIVITY_READ_WRITE,
-        //Scopes.FITNESS_BODY_READ_WRITE,
-        //Scopes.FITNESS_LOCATION_READ_WRITE
-      ],
-    };
-
-    GoogleFit.authorize(options)
-      .then(res => {
-        console.log('res');
-        console.log(res);
-        _getData();
-      })
-      .catch(err => console.log(err));
-
-    GoogleSignin.getCurrentUser()
-      .then(user => {
-        console.log('usr');
-        console.log(user);
-        this.setState({user});
-      })
-      .catch(err => console.log(err));
-
-    /*this.props.navigation.addListener('didFocus', () => {
-            const ref = firestore().collection('users').doc(this.state.user.user.id);
-
-            firestore().runTransaction(async transaction => {
-              const doc = await transaction.get(ref);
-
-              if(!doc.exists) {
-                transaction.set(ref, {user: this.state.user.user, dailyStepGoal: 5000})
-              } else {
-                this.setState({goal: doc._data.dailyStepGoal})
-              }
-            })
-          })*/
-
-    GoogleFit.isAvailable((err, res) => {
-      if (err || !res) {
-        Alert.alert(
-          'Download Google Fit',
-          'No data available for this account, please download Google Fit.\n\nKeep in mind that the account you use for Unimate and the account you use for Google Fit should be the same.',
-          [{text: 'OK', style: 'cancel'}],
-        );
-      }
-    });
-  });
-
-  async function _getData() {
+  const _getData = useCallback(() => {
     var start = new Date();
     var end = new Date();
     start.setHours(0, 0, 0, 0);
@@ -111,13 +63,69 @@ export const TraxivityTodayScreen = ({}): React.ReactElement => {
       getSteps(optionsTab, i, (res, index) => {
         tab[index] = res.length > 0 ? res[0] : {date: '', value: 0};
         if (index === 23) {
+          // eslint-disable-next-line react-hooks/rules-of-hooks
           useForceUpdate();
           console.log('forceupdate?');
           //forceUpdate()
         }
       });
     }
-  }
+  }, [tab]);
+
+  useEffect(() => {
+    (async () => {
+      const firebaseUser = await API.storage.getDataFromStorage<
+        FirebaseAuthTypes.User
+      >(StorageKeys.USER);
+      setUser(firebaseUser);
+      const options = {
+        scopes: [
+          Scopes.FITNESS_ACTIVITY_READ_WRITE,
+          //Scopes.FITNESS_BODY_READ_WRITE,
+          //Scopes.FITNESS_LOCATION_READ_WRITE
+        ],
+      };
+      GoogleFit.authorize(options)
+        .then(res => {
+          console.log('res');
+          console.log(res);
+          _getData();
+        })
+        .catch(err => console.log(err));
+
+      GoogleSignin.getCurrentUser()
+        .then(user => {
+          console.log('usr');
+          console.log(user);
+          this.setState({user});
+        })
+        .catch(err => console.log(err));
+
+      /*this.props.navigation.addListener('didFocus', () => {
+              const ref = firestore().collection('users').doc(this.state.user.user.id);
+  
+              firestore().runTransaction(async transaction => {
+                const doc = await transaction.get(ref);
+  
+                if(!doc.exists) {
+                  transaction.set(ref, {user: this.state.user.user, dailyStepGoal: 5000})
+                } else {
+                  this.setState({goal: doc._data.dailyStepGoal})
+                }
+              })
+            })*/
+
+      GoogleFit.isAvailable((err, res) => {
+        if (err || !res) {
+          Alert.alert(
+            'Download Google Fit',
+            'No data available for this account, please download Google Fit.\n\nKeep in mind that the account you use for Unimate and the account you use for Google Fit should be the same.',
+            [{text: 'OK', style: 'cancel'}],
+          );
+        }
+      });
+    })();
+  }, [_getData]);
 
   const progress = steps > goal ? 100 : Math.round((steps * 100) / goal);
   const BoxData = {

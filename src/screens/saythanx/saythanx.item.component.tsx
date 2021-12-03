@@ -1,7 +1,7 @@
 import {Text} from '@ui-kitten/components';
 import React from 'react';
 import {StyleSheet, TouchableOpacity} from 'react-native';
-import {UtilService} from '../../services/util.service';
+import {getDateToday} from '../../utils/date';
 // import { Text } from '@ui-kitten/components';
 
 export const SaythanxItem = (props): React.ReactElement => {
@@ -19,7 +19,7 @@ export const SaythanxItem = (props): React.ReactElement => {
         borderColor: '#DDD',
         borderWidth: 1,
       }}>
-      {props.item.date != UtilService.getDateToday() && (
+      {props.item.date !== getDateToday() && (
         <Text style={[{marginHorizontal: 16, marginVertical: 4}]} status="info">
           {props.item.date}
         </Text>

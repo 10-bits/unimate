@@ -4,13 +4,14 @@ import {
   faWalking,
 } from '@fortawesome/free-solid-svg-icons';
 import {FontAwesomeIcon} from '@fortawesome/react-native-fontawesome';
+import {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import {
   Icon,
   Text,
   TopNavigation,
   TopNavigationAction,
 } from '@ui-kitten/components';
-import React, {useEffect} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {
   FlatList,
   SafeAreaView,
@@ -21,14 +22,14 @@ import {
 } from 'react-native';
 import {ScrollView} from 'react-native-gesture-handler';
 import * as Progress from 'react-native-progress';
+import {API} from '../../refactored-services';
+import {StorageKeys} from '../../refactored-services/storage.service';
+import {getDateTodayNoFormat, getUserGreeting} from '../../utils/date';
 import {ActionCard} from '../../components/action-card.component';
 import {InfoIcon, MenuIcon} from '../../components/icons';
 import {SafeAreaLayout} from '../../components/safe-area-layout.component';
 import {TodoInput} from '../../components/todo-input.component';
 import {TodoItem} from '../../components/todo-item.component';
-import {AppStorage} from '../../services/app-storage.service';
-import {FirebaseService} from '../../services/firebase.service';
-import {UtilService} from '../../services/util.service';
 
 export const MoodScreen = ({navigation}): React.ReactElement => {
   const [actionData, setActionData] = React.useState<Object>();
@@ -36,41 +37,54 @@ export const MoodScreen = ({navigation}): React.ReactElement => {
   const [emotivityCompleted, setEmotivityCompleted] = React.useState(0);
   const [sayThanxCompleted, setSayThanxCompleted] = React.useState(0);
   const [traxivityPercentage, setTraxivityPercentage] = React.useState(0);
+  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
 
-  const userGreeting = UtilService.getUserGreeting();
+  const userGreeting = useMemo(() => getUserGreeting(user), [user]);
 
   //let actionData = {}
 
   useEffect(() => {
-    FirebaseService.getTodayActionCard(onSuccess);
-    setInitialToDoList();
-    const unsubscribe = navigation.addListener('focus', async () => {
-      // The screen is focused
-      await setCurrentProgressInformation();
-    });
-  }, []);
+    let unsubscribe;
+    (async () => {
+      const firebaseUser = await API.storage.getDataFromStorage<
+        FirebaseAuthTypes.User
+      >(StorageKeys.USER);
+      setUser(firebaseUser);
+
+      await API.firestore.getTodayActionCard(onSuccess);
+      setInitialToDoList();
+
+      unsubscribe = navigation.addListener('focus', async () => {
+        // The screen is focused
+        await setCurrentProgressInformation();
+      });
+    })();
+    return () => unsubscribe();
+  }, [navigation]);
 
   const setCurrentProgressInformation = async () => {
     try {
-      const traxivityPercentage = await AppStorage.stepPercentage();
-      setTraxivityPercentage(traxivityPercentage);
+      const _traxivityPercentage = API.traxivity.getStepsPercentage();
+      setTraxivityPercentage(_traxivityPercentage);
 
-      const sayThanxDataCompleted = await AppStorage.checkSayThanxTodayCompleted();
+      const sayThanxDataCompleted = await API.storage.getDataFromStorage<any>(
+        StorageKeys.SAYTHANX_FAILLED,
+      );
       if (
         sayThanxDataCompleted != null &&
-        Number(sayThanxDataCompleted.date) ==
-          Number(UtilService.getDateTodayNoFormat())
+        Number(sayThanxDataCompleted.date) === Number(getDateTodayNoFormat())
       ) {
         setSayThanxCompleted(1);
       } else {
         setSayThanxCompleted(0);
       }
 
-      const emotivityDataCompleted = await AppStorage.checkEmotivityTodayCompleted();
+      const emotivityDataCompleted = await API.storage.getDataFromStorage<any>(
+        StorageKeys.EMOTIVITY_FILLED,
+      );
       if (
         emotivityDataCompleted != null &&
-        Number(emotivityDataCompleted.date) ==
-          Number(UtilService.getDateTodayNoFormat())
+        Number(emotivityDataCompleted.date) === Number(getDateTodayNoFormat())
       ) {
         setEmotivityCompleted(1);
       } else {
@@ -80,8 +94,10 @@ export const MoodScreen = ({navigation}): React.ReactElement => {
   };
 
   const setInitialToDoList = async () => {
-    const initialToDoList = await AppStorage.getToDoList();
-    if (initialToDoList != null) {
+    const initialToDoList = await API.storage.getDataFromStorage<any>(
+      StorageKeys.TODO_KEY,
+    );
+    if (initialToDoList !== null) {
       setTodoItems(initialToDoList);
     }
   };
@@ -126,75 +142,68 @@ export const MoodScreen = ({navigation}): React.ReactElement => {
   );
 
   const statusE = props => (
-    <Text
-      status={AppStorage.getEmotivityDetails().status ? 'success' : 'danger'}>
-      {AppStorage.getEmotivityDetails().status ? 'Completed' : 'Not Completed'}
+    <Text status={API.emotivity.emotivityStatus ? 'success' : 'danger'}>
+      {API.emotivity.emotivityStatus ? 'Completed' : 'Not Completed'}
     </Text>
   );
 
   const statusT = props => (
     <Text
-      status={
-        AppStorage.getTraxivityDetails().goal >
-        AppStorage.getTraxivityDetails().steps
-          ? 'danger'
-          : 'success'
-      }>
-      {AppStorage.getTraxivityDetails().steps}/
-      {AppStorage.getTraxivityDetails().goal}
+      status={API.traxivity.goal > API.traxivity.steps ? 'danger' : 'success'}>
+      {API.traxivity.steps}/{API.traxivity.goal}
     </Text>
   );
 
   const addTodoItemBottom = async _text => {
-    const temp = await AppStorage.getToDoList();
+    const temp = await API.storage.getDataFromStorage(StorageKeys.TODO_KEY);
     if (temp != null) {
       temp.push({text: _text, completed: false});
-      await AppStorage.saveToDoList(temp);
+      await API.storage.saveToStorage(StorageKeys.TODO_KEY, temp);
       setTodoItems(temp);
     } else {
       const tempIni = [{text: _text, completed: false}];
-      await AppStorage.saveToDoList(tempIni);
+      await API.storage.saveToStorage(StorageKeys.TODO_KEY, tempIni);
       setTodoItems(tempIni);
     }
   };
 
   const addTodoItemTop = async _text => {
-    const temp = await AppStorage.getToDoList();
+    const temp = await API.storage.getDataFromStorage(StorageKeys.TODO_KEY);
     if (temp != null && temp.length > 0) {
       const userInput = [{text: _text, completed: false}];
       const updatedArr = userInput.concat(temp);
-      await AppStorage.saveToDoList(updatedArr);
+      await API.storage.saveToStorage(StorageKeys.TODO_KEY, updatedArr);
       setTodoItems(updatedArr);
     } else {
       const tempIni = [{text: _text, completed: false}];
-      await AppStorage.saveToDoList(tempIni);
+      await API.storage.saveToStorage(StorageKeys.TODO_KEY, tempIni);
       setTodoItems(tempIni);
     }
   };
 
   const deleteTodoItem = async _index => {
-    const temp = await AppStorage.getToDoList();
+    const temp = await API.storage.getDataFromStorage(StorageKeys.TODO_KEY);
     let tempArr = [...temp];
     tempArr.splice(_index, 1);
-    await AppStorage.saveToDoList(tempArr);
+    await API.storage.saveToStorage(StorageKeys.TODO_KEY, tempArr);
     setTodoItems(tempArr);
   };
 
   const completeTodoItem = async _index => {
-    const temp = await AppStorage.getToDoList();
+    const temp = await API.storage.getDataFromStorage(StorageKeys.TODO_KEY);
     let tempArr = [...temp];
     if (tempArr[_index].completed) {
       const task = tempArr[_index].text;
       tempArr.splice(_index, 1);
       const userInput = [{text: task, completed: false}];
       const updatedArr = userInput.concat(tempArr);
-      await AppStorage.saveToDoList(updatedArr);
+      await API.storage.saveToStorage(StorageKeys.TODO_KEY, updatedArr);
       setTodoItems(updatedArr);
     } else {
       const task = tempArr[_index].text;
       tempArr.splice(_index, 1);
       tempArr.push({text: task, completed: true});
-      await AppStorage.saveToDoList(tempArr);
+      await API.storage.saveToStorage(StorageKeys.TODO_KEY, tempArr);
       setTodoItems(tempArr);
     }
   };

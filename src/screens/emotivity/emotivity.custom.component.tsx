@@ -4,8 +4,8 @@ import React, {useEffect, useState} from 'react';
 import {Dimensions, StyleSheet} from 'react-native';
 import {ProgressChart} from 'react-native-chart-kit';
 import {ScrollView} from 'react-native-gesture-handler';
-import {API} from 'src/refactored-services';
-import {StorageKeys} from 'src/refactored-services/storage.service';
+import {API} from '../../refactored-services';
+import {StorageKeys} from '../../refactored-services/storage.service';
 import {EMOTIVITY} from '../../services/types';
 import {getDateFromDatabaseDateFormat} from './../../utils/date';
 

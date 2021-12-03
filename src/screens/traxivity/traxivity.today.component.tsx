@@ -1,20 +1,22 @@
+import {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import {Layout, Text, TopNavigationAction} from '@ui-kitten/components';
 import React from 'react';
 import {Alert, Dimensions, ScrollView, StyleSheet, View} from 'react-native';
 import GoogleFit, {Scopes} from 'react-native-google-fit';
 import * as Progress from 'react-native-progress';
+import {API} from '../../refactored-services';
+import {StorageKeys} from '../../refactored-services/storage.service';
 import {getCals, getDists, getSteps} from '../../api/googleFitApi';
 import BarChart from '../../components/bar-chart.component';
 import {MenuIcon} from '../../components/icons';
 import TraxivityDataTab from '../../components/traxivity-data.component';
-import {AppStorage} from '../../services/app-storage.service';
-import {FirebaseService} from '../../services/firebase.service';
 
 const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
 export class TraxivityTodayScreen extends React.Component {
   tab: any[];
+  user: FirebaseAuthTypes.User | null = null;
 
   constructor(props) {
     super(props);
@@ -26,7 +28,7 @@ export class TraxivityTodayScreen extends React.Component {
       cals: 0,
       dists: 0,
       goal: 5000,
-      user: AppStorage.getUser(),
+      user: {},
     };
     this.tab = [];
   }
@@ -42,7 +44,13 @@ export class TraxivityTodayScreen extends React.Component {
     this.setState({selectedIndex: index});
   }
 
-  componentDidMount() {
+  async componentDidMount() {
+    const user = await API.storage.getDataFromStorage<FirebaseAuthTypes.User>(
+      StorageKeys.USER,
+    );
+    this.user = user;
+    // eslint-disable-next-line react/no-did-mount-set-state
+    this.setState({user});
     GoogleFit.isAvailable((err, res) => {
       if (err || !res) {
         Alert.alert(
@@ -63,9 +71,13 @@ export class TraxivityTodayScreen extends React.Component {
       })
       .catch(err => console.log(err));
 
-    this.setState({goal: AppStorage.getTraxivityDetails().goal});
+    // eslint-disable-next-line react/no-did-mount-set-state
+    this.setState({goal: API.traxivity.goal});
 
-    FirebaseService.subscribeForTraxivity(this.onSuccess);
+    API.firestore.subscribeForTraxivity(
+      this.user ? this.user.uid : '',
+      this.onSuccess,
+    );
   }
 
   onSuccess(documentSnapshot) {

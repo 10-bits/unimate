@@ -6,7 +6,7 @@ export enum StorageKeys {
   THEME_KEY = 'theme',
   TODO_KEY = 'todo',
   EMOTIVITY_FILLED = 'emotivity_filled',
-  SAYTHANX_FAILED = 'saythanx_failed',
+  SAYTHANX_FAILLED = 'saythanx_filled',
   NOTIFICATIONS_KEY = 'notifications',
   DAILY_STEPS_GOAL = 'daily_steps_goal',
   SAYTHANX_KEY = 'saythanks_key',

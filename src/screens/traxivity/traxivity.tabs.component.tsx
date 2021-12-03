@@ -1,21 +1,15 @@
-import React from 'react';
-import {StyleSheet, View, Picker, Alert} from 'react-native';
+import { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { firebase } from '@react-native-firebase/firestore';
 import {
-  Tab,
-  TopNavigation,
-  TopNavigationAction,
-  Divider,
-  TabBar,
-  Modal,
-  Layout,
-  Button,
-  Text,
-  Select,
-  SelectOptionType,
+  Button, Layout, Modal, Select,
+  SelectOptionType, Tab, TabBar, Text, TopNavigation,
+  TopNavigationAction
 } from '@ui-kitten/components';
-import {MenuIcon, GoalIcon} from '../../components/icons';
-import {AppStorage} from '../../services/app-storage.service';
-import {firebase} from '@react-native-firebase/firestore';
+import React from 'react';
+import { Alert, StyleSheet, View } from 'react-native';
+import { API } from '../../refactored-services';
+import { StorageKeys } from '../../refactored-services/storage.service';
+import { GoalIcon, MenuIcon } from '../../components/icons';
 
 export const TraxivityTabs = ({navigation, state}): React.ReactElement => {
   const items: SelectOptionType[] = [];
@@ -24,9 +18,9 @@ export const TraxivityTabs = ({navigation, state}): React.ReactElement => {
   }
 
   const [goal_visible, setGoalVisible] = React.useState<boolean>(false);
-  console.log(AppStorage.getTraxivityDetails().goal / 500);
+  console.log(API.traxivity.goal / 500);
   const [selectedOption, setSelectedOption] = React.useState(
-    items[AppStorage.getTraxivityDetails().goal / 1000 - 1],
+    items[API.traxivity.goal / 1000 - 1],
   );
 
   const onTabSelect = (index: number): void => {
@@ -44,11 +38,14 @@ export const TraxivityTabs = ({navigation, state}): React.ReactElement => {
     />
   );
 
-  const submit = () => {
+  const submit = async () => {
+    const user = await API.storage.getDataFromStorage<FirebaseAuthTypes.User>(
+      StorageKeys.USER,
+    );
     const ref = firebase
       .firestore()
       .collection('users')
-      .doc(AppStorage.getUser().uid);
+      .doc(user?.uid);
     firebase
       .firestore()
       .runTransaction(async transaction => {
@@ -57,7 +54,7 @@ export const TraxivityTabs = ({navigation, state}): React.ReactElement => {
           dailyStepGoal: parseInt(selectedOption.text, 10),
         });
         //Save Daily Steps goal locally. This data will be used in push notifications
-        AppStorage.setDailyStepsGoal(parseInt(selectedOption.text, 10));
+        await API.storage.saveToStorage(StorageKeys.DAILY_STEPS_GOAL, parseInt(selectedOption.text, 10));
       })
       .then(() => {
         Alert.alert('Thank you', 'Your goal have been saved', [{text: 'OK'}]);

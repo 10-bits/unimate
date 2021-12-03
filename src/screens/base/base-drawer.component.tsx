@@ -20,7 +20,7 @@ import React from 'react';
 import {StyleSheet, View} from 'react-native';
 import Config from 'react-native-config';
 import RNRestart from 'react-native-restart';
-import {openBrowserAsync} from 'src/utils/browser';
+import {openBrowserAsync} from '../../utils/browser';
 import {AboutIcon, GlobeIcon} from '../../components/icons';
 import {SafeAreaLayout} from '../../components/safe-area-layout.component';
 import {AppStorage} from '../../services/app-storage.service';

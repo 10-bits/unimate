@@ -272,4 +272,12 @@ export class FirestoreService {
       .get()
       .then(onSuccessDiary, error => Logger.error(error.message));
   }
+
+  getTodayActionCard(onSuccess) {
+    return firestore()
+      .collection('action_cards')
+      .where('date', '==', getDateToday('MM/DD/YYYY'))
+      .get()
+      .then(onSuccess, error => Logger.error(error.message));
+  }
 }

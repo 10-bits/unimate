@@ -7,19 +7,19 @@ import {ProgressChart} from 'react-native-chart-kit';
 import {ScrollView} from 'react-native-gesture-handler';
 import MotionSlider from 'react-native-motion-slider';
 import * as Progress from 'react-native-progress';
-import {API} from 'src/refactored-services';
-import {EmotivityRecord} from 'src/refactored-services/emotivity.service';
-import {
-  Conversation,
-  DiaryEntryDoc,
-} from 'src/refactored-services/firestore.service';
-import {StorageKeys} from 'src/refactored-services/storage.service';
-import {getDateToday, getDateTodayNoFormat} from 'src/utils/date';
+import {getDateToday, getDateTodayNoFormat} from '../../utils/date';
 import {
   ArrowIosBackIcon,
   ArrowIosForwardIcon,
   CheckIcon,
 } from '../../components/icons';
+import {API} from '../../refactored-services';
+import {EmotivityRecord} from '../../refactored-services/emotivity.service';
+import {
+  Conversation,
+  DiaryEntryDoc,
+} from '../../refactored-services/firestore.service';
+import {StorageKeys} from '../../refactored-services/storage.service';
 import {DIARY, EMOTIVITY, MOOD_SLIDES} from '../../services/types';
 
 const vals = {

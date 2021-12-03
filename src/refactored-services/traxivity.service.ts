@@ -9,8 +9,16 @@ export class TraxivityService {
     scopes: [Scopes.FITNESS_ACTIVITY_READ_WRITE],
   };
 
-  private goal: number = 0;
-  private steps: number = 0;
+  private _goal: number = 0;
+  private _steps: number = 0;
+
+  get goal() {
+    return this._goal;
+  }
+
+  get steps() {
+    return this._steps;
+  }
 
   async getSteptsToday(goal: number, onSuccess: () => void) {
     try {
@@ -24,8 +32,8 @@ export class TraxivityService {
         {startDate: start, endDate: end},
         null,
         (res: string | any[]) => {
-          this.goal = goal;
-          this.steps = res.length > 0 ? res[0].value : 0;
+          this._goal = goal;
+          this._steps = res.length > 0 ? res[0].value : 0;
           API.storage.saveToStorage(StorageKeys.DAILY_STEPS_GOAL, {goal});
           onSuccess();
         },
@@ -33,5 +41,14 @@ export class TraxivityService {
     } catch (error) {
       Logger.error('Colud not authorize google fit', error.message);
     }
+  }
+
+  getStepsPercentage() {
+    var temp = 0;
+    if (this._steps > 0 && this._goal > 0) {
+      temp = this._steps / this._goal;
+    }
+
+    return temp;
   }
 }

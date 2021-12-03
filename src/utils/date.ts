@@ -1,5 +1,6 @@
+import {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import moment from 'moment';
-import {DATE} from 'src/services/types';
+import {DATE} from '../services/types';
 
 export const getDateToday = (DATE_FORMAT_TYPE = 'Do MMMM YYYY') => {
   if (DATE_FORMAT_TYPE === '') {
@@ -60,4 +61,27 @@ export const getDateYesterday = (DATE_FORMAT_TYPE = DATE.FORMATS.DEFAULT) => {
   return moment()
     .subtract(1, 'days')
     .format(DATE_FORMAT_TYPE);
+};
+
+export const getUserGreeting = (
+  firebaseUser: FirebaseAuthTypes.User | null,
+) => {
+  const currentTime = moment();
+  //TODO
+  const user = !!irebaseUser ? firebaseUser.displayName.split(' ')[0] : '';
+
+  if (!currentTime || !currentTime.isValid()) {
+    return '👋 Hello, ' + user;
+  }
+
+  const splitAfternoon = 12;
+  const splitEvening = 17;
+  const currentHour = parseFloat(currentTime.format('HH'));
+
+  if (currentHour >= splitAfternoon && currentHour <= splitEvening) {
+    return '🌞 Good Afternoon, ' + user + ' !';
+  } else if (currentHour >= splitEvening) {
+    return '✨ Good Evening, ' + user + ' !';
+  }
+  return '🌅 Good Morning, ' + user + ' !';
 };

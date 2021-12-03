@@ -9,11 +9,12 @@ import {
 } from '@ui-kitten/components';
 import React from 'react';
 import {ListRenderItemInfo, ScrollView, StyleSheet, View} from 'react-native';
+import {API} from '../../refactored-services';
+import {StorageKeys} from '../../refactored-services/storage.service';
 import {InfoIcon, MenuIcon} from '../../components/icons';
 import {NotificationItem} from '../../components/notification.component';
 import {SafeAreaLayout} from '../../components/safe-area-layout.component';
 import {Notification} from '../../models/notification';
-import {AppStorage} from '../../services/app-storage.service';
 
 const renderItem = (
   info: ListRenderItemInfo<Notification>,
@@ -42,7 +43,9 @@ export class NotificationsScreen extends React.Component {
   }
 
   setInitialNotificationsList = async () => {
-    const initialNotificationsList = await AppStorage.getNotificationsList();
+    const initialNotificationsList = await API.storage.getDataFromStorage(
+      StorageKeys.NOTIFICATIONS_KEY,
+    );
     if (initialNotificationsList != null) {
       this.setState({notifications: initialNotificationsList});
     }
@@ -50,10 +53,12 @@ export class NotificationsScreen extends React.Component {
 
   deleteNotification = async _index => {
     console.log('inside delete notification');
-    const temp = await AppStorage.getNotificationsList();
+    const temp = await API.storage.getDataFromStorage(
+      StorageKeys.NOTIFICATIONS_KEY,
+    );
     let tempArr = [...temp];
     tempArr.splice(_index, 1);
-    await AppStorage.saveNotificationsList(tempArr);
+    await API.storage.saveToStorage(StorageKeys.NOTIFICATIONS_KEY, tempArr);
     // setTodoItems(tempArr);
     this.setState({notifications: tempArr});
   };
