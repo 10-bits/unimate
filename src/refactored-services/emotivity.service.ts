@@ -7,6 +7,11 @@ export interface EmotivityRecord {
   tired: number; // 100
 }
 
+export interface EmotivityFilledRecord {
+  date: number;
+  action: 'Completed';
+}
+
 export class EmotivityService {
   private _emotivityStatus: boolean = false;
   private _emotivityRecord: EmotivityRecord = {
@@ -25,9 +30,11 @@ export class EmotivityService {
     }
   }
 
-  get emoti(){
+  get emotivityRecord() {
     return this._emotivityRecord;
   }
 
-  getEmo
+  get emotivityStatus() {
+    return this._emotivityStatus;
+  }
 }

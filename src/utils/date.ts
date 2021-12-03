@@ -36,3 +36,28 @@ export const getDateWeekAgo = (DATE_FORMAT_TYPE = DATE.FORMATS.DEFAULT) => {
     .subtract(7, 'days')
     .format(DATE_FORMAT_TYPE);
 };
+
+export const getDateTodayNoFormat = () => {
+  const today = new Date();
+  today.setHours(0);
+  today.setMinutes(0);
+  today.setMilliseconds(0);
+  today.setSeconds(0);
+  return today.getTime();
+};
+
+export const getDateYesterday = (DATE_FORMAT_TYPE = DATE.FORMATS.DEFAULT) => {
+  if (DATE_FORMAT_TYPE === DATE.FORMATS.DB_UNIX) {
+    const yesterday = moment()
+      .subtract(1, 'days')
+      .toDate();
+    yesterday.setHours(0);
+    yesterday.setMinutes(0);
+    yesterday.setMilliseconds(0);
+    yesterday.setSeconds(0);
+    return yesterday.getTime();
+  }
+  return moment()
+    .subtract(1, 'days')
+    .format(DATE_FORMAT_TYPE);
+};

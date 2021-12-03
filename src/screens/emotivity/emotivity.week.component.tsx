@@ -1,11 +1,13 @@
+import {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import {Divider, Text} from '@ui-kitten/components';
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {Dimensions, StyleSheet} from 'react-native';
 import {ProgressChart} from 'react-native-chart-kit';
 import {ScrollView} from 'react-native-gesture-handler';
-import {FirebaseService} from '../../services/firebase.service';
+import {API} from 'src/refactored-services';
+import {StorageKeys} from 'src/refactored-services/storage.service';
+import {getDateWeekAgo, getDateYesterday} from 'src/utils/date';
 import {DATE, EMOTIVITY} from '../../services/types';
-import {UtilService} from '../../services/util.service';
 
 export const EmotivityWeekScreen = ({navigation}): React.ReactElement => {
   let isFirstRingLegend = true;
@@ -13,6 +15,7 @@ export const EmotivityWeekScreen = ({navigation}): React.ReactElement => {
   const screenWidth = Dimensions.get('window').width;
 
   const [weeklyDiaryData, setWeeklyDiaryData] = React.useState([]);
+  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
   const [weeklyEmotivityData, setWeeklyEmotivityData] = React.useState({
     [EMOTIVITY.DATABASE.FIELDS.ANGER]: 0,
     [EMOTIVITY.DATABASE.FIELDS.ANXIETY]: 0,
@@ -23,12 +26,19 @@ export const EmotivityWeekScreen = ({navigation}): React.ReactElement => {
   });
 
   useEffect(() => {
-    FirebaseService.getEmotivityData(
-      UtilService.getDateWeekAgo(DATE.FORMATS.DB_UNIX),
-      UtilService.getDateYesterday(DATE.FORMATS.DB_UNIX),
-      onSuccessMoodTracking,
-      onSuccessDiaryEntry,
-    );
+    (async () => {
+      const firebaseUser = await API.storage.getDataFromStorage<
+        FirebaseAuthTypes.User
+      >(StorageKeys.USER);
+      setUser(firebaseUser);
+      API.firestore.getEmotivtyData(
+        firebaseUser ? firebaseUser.uid : '',
+        getDateWeekAgo(DATE.FORMATS.DB_UNIX),
+        getDateYesterday(DATE.FORMATS.DB_UNIX),
+        onSuccessMoodTracking,
+        onSuccessDiaryEntry,
+      );
+    })();
   }, []);
 
   const onSuccessMoodTracking = querySnapshot => {
@@ -113,7 +123,7 @@ export const EmotivityWeekScreen = ({navigation}): React.ReactElement => {
           marginTop: 20,
           textAlign: 'center',
         }}>
-        {UtilService.getDateWeekAgo() + ' to ' + UtilService.getDateYesterday()}
+        {getDateWeekAgo() + ' to ' + getDateYesterday()}
       </Text>
       <Divider
         style={{width: '100%', alignSelf: 'center', marginVertical: 10}}

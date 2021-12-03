@@ -1,20 +1,26 @@
+import {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import {Button, Divider, Input, Layout, Text} from '@ui-kitten/components';
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {Dimensions, Image, StyleSheet, View} from 'react-native';
 import AppIntroSlider from 'react-native-app-intro-slider';
 import {ProgressChart} from 'react-native-chart-kit';
 import {ScrollView} from 'react-native-gesture-handler';
 import MotionSlider from 'react-native-motion-slider';
 import * as Progress from 'react-native-progress';
+import {API} from 'src/refactored-services';
+import {EmotivityRecord} from 'src/refactored-services/emotivity.service';
+import {
+  Conversation,
+  DiaryEntryDoc,
+} from 'src/refactored-services/firestore.service';
+import {StorageKeys} from 'src/refactored-services/storage.service';
+import {getDateToday, getDateTodayNoFormat} from 'src/utils/date';
 import {
   ArrowIosBackIcon,
   ArrowIosForwardIcon,
   CheckIcon,
 } from '../../components/icons';
-import {AppStorage} from '../../services/app-storage.service';
-import {FirebaseService} from '../../services/firebase.service';
 import {DIARY, EMOTIVITY, MOOD_SLIDES} from '../../services/types';
-import {UtilService} from '../../services/util.service';
 
 const vals = {
   [EMOTIVITY.DATABASE.FIELDS.ANGER]: 0,
@@ -40,7 +46,7 @@ export const EmotivityTodayScreen = ({navigation}): React.ReactElement => {
   });
 
   const [isDone, setDone] = React.useState<boolean>(
-    AppStorage.getEmotivityDetails().status,
+    API.emotivity.emotivityStatus,
   );
 
   const [questions_visible, setQuestionsVisible] = React.useState<boolean>(
@@ -58,6 +64,7 @@ export const EmotivityTodayScreen = ({navigation}): React.ReactElement => {
   const [question_three_visible, setQuestionThreeVisible] = React.useState<
     boolean
   >(false);
+  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
 
   const [prompt_visible, setPromptVisible] = React.useState<boolean>(false);
   const [reflect_visible, setReflectVisible] = React.useState<boolean>(false);
@@ -73,21 +80,16 @@ export const EmotivityTodayScreen = ({navigation}): React.ReactElement => {
   const [diaryData, setDiaryData] = React.useState(undefined);
 
   useEffect(() => {
-    FirebaseService.getTodayDiaryEntry(onSuccess);
-    setScores({
-      [EMOTIVITY.DATABASE.FIELDS.ANGER]: AppStorage.getEmotivityDetails()
-        .record[EMOTIVITY.DATABASE.FIELDS.ANGER],
-      [EMOTIVITY.DATABASE.FIELDS.ANXIETY]: AppStorage.getEmotivityDetails()
-        .record[EMOTIVITY.DATABASE.FIELDS.ANXIETY],
-      [EMOTIVITY.DATABASE.FIELDS.HAPPINESS]: AppStorage.getEmotivityDetails()
-        .record[EMOTIVITY.DATABASE.FIELDS.HAPPINESS],
-      [EMOTIVITY.DATABASE.FIELDS.SADNESS]: AppStorage.getEmotivityDetails()
-        .record[EMOTIVITY.DATABASE.FIELDS.SADNESS],
-      [EMOTIVITY.DATABASE.FIELDS.STRESS]: AppStorage.getEmotivityDetails()
-        .record[EMOTIVITY.DATABASE.FIELDS.STRESS],
-      [EMOTIVITY.DATABASE.FIELDS.TIRED]: AppStorage.getEmotivityDetails()
-        .record[EMOTIVITY.DATABASE.FIELDS.TIRED],
-    });
+    (async () => {
+      const firebaseUser = await API.storage.getDataFromStorage<
+        FirebaseAuthTypes.User
+      >(StorageKeys.USER);
+      setUser(firebaseUser);
+      if (user) {
+        await API.firestore.getTodayDiaryEntry(onSuccess, user.uid);
+      }
+      setScores(API.emotivity.emotivityRecord);
+    })();
   }, []);
 
   const onSuccess = querySnapshot => {
@@ -107,42 +109,48 @@ export const EmotivityTodayScreen = ({navigation}): React.ReactElement => {
     }
   };
 
-  const _sendAddDiaryRequest = () => {
+  const _sendAddDiaryRequest = async () => {
     const convos: Object[] = [];
     if (q1) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q1,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+        answer: {
           text: q1,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
     if (q2) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q2,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+        answer: {
           text: q2,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
     if (q3) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q3,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+        answer: {
           text: q3,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
-    FirebaseService.addNewDiaryEntry(DIARY.DATABASE.STATUS.INCOMPLETE, convos);
+    const entry: DiaryEntryDoc = {
+      user: user ? user.uid : '',
+      conversations: convos as Conversation[],
+      status: 'Incomplete',
+      date: getDateToday(''),
+    };
+    await API.firestore.addNewDiaryEntry(entry);
   };
 
   const reflectNowButton = () => {
@@ -179,9 +187,9 @@ export const EmotivityTodayScreen = ({navigation}): React.ReactElement => {
     setQuestionThreeVisible(false);
   };
 
-  const reflectLaterButton = () => {
+  const reflectLaterButton = async () => {
     _sendAddDiaryRequest();
-    FirebaseService.getTodayDiaryEntry(onSuccess);
+    await API.firestore.getTodayDiaryEntry(onSuccess, user ? user.uid : '');
     setQuestionsVisible(false);
     setQuestionStartVisible(false);
     setQuestionOneVisible(false);
@@ -435,61 +443,71 @@ export const EmotivityTodayScreen = ({navigation}): React.ReactElement => {
       <Progress.Bar progress={0.66} width={300} color="#712177" />
     </Layout>
   );
-  const reflectSubmitButton = () => {
+  const reflectSubmitButton = async () => {
     const convos: Object[] = [];
     if (q1) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q1,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+        answer: {
           text: q1,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
     if (q2) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q2,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+        answer: {
           text: q2,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
     if (q3) {
       convos.push({
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
+        question: {
           text: DIARY.DATABASE.QUESTIONS.Q3,
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
+        answer: {
           text: q3,
-          time: FirebaseService.getTimeStamp(),
+          time: Date.now(),
         },
       });
     }
-    FirebaseService.addNewDiaryEntry(DIARY.DATABASE.STATUS.COMPLETE, [
-      ...convos,
-      {
-        [DIARY.DATABASE.FIELDS.CONVERSATION.QUESTION]: {
-          text: DIARY.DATABASE.QUESTIONS.Q4,
+    const entry: DiaryEntryDoc = {
+      user: user ? user.uid : '',
+      status: 'Complete',
+      conversations: [
+        ...convos,
+        {
+          question: {
+            text: DIARY.DATABASE.QUESTIONS.Q4,
+          },
+          answer: {
+            text: q4,
+            time: Date.now(),
+          },
         },
-        [DIARY.DATABASE.FIELDS.CONVERSATION.ANSWER]: {
-          text: q4,
-          time: FirebaseService.getTimeStamp(),
-        },
-      },
-    ]);
-    FirebaseService.getTodayDiaryEntry(onSuccess);
+      ] as Conversation[],
+      date: getDateToday(''),
+    };
+    await API.firestore.addNewDiaryEntry(entry);
+    await API.firestore.getTodayDiaryEntry(onSuccess, user ? user.uid : '');
     setReflectVisible(!reflect_visible);
   };
 
   const laterButton = () => {
-    _sendAddDiaryRequest();
-    FirebaseService.getTodayDiaryEntry(onSuccess);
-    setReflectVisible(false);
+    if (user) {
+      _sendAddDiaryRequest();
+      API.firestore.getTodayDiaryEntry(onSuccess, user.uid);
+      setReflectVisible(false);
+    } else {
+      throw new Error('User not exist');
+    }
   };
 
   const backButton = () => {
@@ -612,7 +630,7 @@ export const EmotivityTodayScreen = ({navigation}): React.ReactElement => {
     </Layout>
   );
 
-  const onMoodScoreSubmit = () => {
+  const onMoodScoreSubmit = async () => {
     // Get all the negatives that are >= 3
 
     const moods: string[] = [];
@@ -651,23 +669,21 @@ export const EmotivityTodayScreen = ({navigation}): React.ReactElement => {
     togglePromptModal();
     console.log('scores');
     console.log(scores);
-    FirebaseService.addMoodTrackingRecord({
-      [EMOTIVITY.DATABASE.FIELDS.ANGER]:
-        scores[EMOTIVITY.DATABASE.FIELDS.ANGER],
-      [EMOTIVITY.DATABASE.FIELDS.ANXIETY]:
-        scores[EMOTIVITY.DATABASE.FIELDS.ANXIETY],
-      [EMOTIVITY.DATABASE.FIELDS.HAPPINESS]:
-        scores[EMOTIVITY.DATABASE.FIELDS.HAPPINESS],
-      [EMOTIVITY.DATABASE.FIELDS.SADNESS]:
-        scores[EMOTIVITY.DATABASE.FIELDS.SADNESS],
-      [EMOTIVITY.DATABASE.FIELDS.STRESS]:
-        scores[EMOTIVITY.DATABASE.FIELDS.STRESS],
-      [EMOTIVITY.DATABASE.FIELDS.TIRED]:
-        scores[EMOTIVITY.DATABASE.FIELDS.TIRED],
-    });
+    const moodTrackingRecord: EmotivityRecord = {
+      anger: scores[EMOTIVITY.DATABASE.FIELDS.ANGER],
+      anxiety: scores[EMOTIVITY.DATABASE.FIELDS.ANXIETY],
+      happiness: scores[EMOTIVITY.DATABASE.FIELDS.HAPPINESS],
+      sadness: scores[EMOTIVITY.DATABASE.FIELDS.SADNESS],
+      stress: scores[EMOTIVITY.DATABASE.FIELDS.STRESS],
+      tired: scores[EMOTIVITY.DATABASE.FIELDS.TIRED],
+    };
+    await API.firestore.adMoodTrackingRecord(
+      moodTrackingRecord,
+      user ? user.uid : '',
+    );
     //Mark emotivity Completed for today
-    AppStorage.markEmotivityTodayCompleted({
-      date: UtilService.getDateTodayNoFormat(),
+    await API.storage.saveToStorage(StorageKeys.EMOTIVITY_FILLED, {
+      date: getDateTodayNoFormat(),
       action: 'Completed',
     });
   };
@@ -789,7 +805,7 @@ export const EmotivityTodayScreen = ({navigation}): React.ReactElement => {
             marginTop: 20,
             textAlign: 'center',
           }}>
-          {UtilService.getDateToday()}
+          {`${getDateToday()}`}
         </Text>
         <Divider
           style={{width: '100%', alignSelf: 'center', marginVertical: 10}}

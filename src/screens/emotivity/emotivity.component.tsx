@@ -1,5 +1,5 @@
-import {faInfoCircle} from '@fortawesome/free-solid-svg-icons';
-import {FontAwesomeIcon} from '@fortawesome/react-native-fontawesome';
+import { faInfoCircle } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import {
   Button,
@@ -14,10 +14,10 @@ import {
 } from '@ui-kitten/components';
 import moment from 'moment';
 import React from 'react';
-import {Dimensions, Image, StyleSheet, View} from 'react-native';
+import { Dimensions, Image, StyleSheet, View } from 'react-native';
 import AppIntroSlider from 'react-native-app-intro-slider';
-import {ProgressChart} from 'react-native-chart-kit';
-import {ScrollView} from 'react-native-gesture-handler';
+import { ProgressChart } from 'react-native-chart-kit';
+import { ScrollView } from 'react-native-gesture-handler';
 import MotionSlider from 'react-native-motion-slider';
 import { API } from 'src/refactored-services';
 import { EmotivityRecord } from 'src/refactored-services/emotivity.service';
@@ -31,11 +31,9 @@ import {
   CheckIcon,
   MenuIcon,
 } from '../../components/icons';
-import {SafeAreaLayout} from '../../components/safe-area-layout.component';
-import {AppStorage} from '../../services/app-storage.service';
-import {FirebaseService} from '../../services/firebase.service';
-import {DATE, DIARY, EMOTIVITY} from '../../services/types';
-import {UtilService} from '../../services/util.service';
+import { SafeAreaLayout } from '../../components/safe-area-layout.component';
+import { DATE, DIARY, EMOTIVITY } from '../../services/types';
+import { UtilService } from '../../services/util.service';
 
 const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
@@ -137,7 +135,7 @@ export class EmotivityScreen extends React.Component {
       sadness: 0,
       stress: 0,
       tired: 0,
-      done: API.emotivity.getEmotivityDetails().status,
+      done: API.emotivity.emotivityStatus,
       q1: '',
       q2: '',
       q3: '',
@@ -164,7 +162,7 @@ export class EmotivityScreen extends React.Component {
 
   async componentDidMount() {
     const user = await API.storage.getDataFromStorage<FirebaseAuthTypes.User>(StorageKeys.USER);
-    this.setState({user});
+    this.setState({ user });
     await API.firestore.getTodayDiaryEntry(this.onSuccess, this.state.user.uid);
     await API.firestore.getEmotivtyData(
       this.state.user.uid,
@@ -173,22 +171,22 @@ export class EmotivityScreen extends React.Component {
       this.onSuccessMoodTracking,
       this.onSuccessDiaryEntry,
     );
-    const emotivityRecord = API.emotivity.getEmotivityDetails();
+    const emotivityRecord = API.emotivity.emotivityRecord;
     this.setState(emotivityRecord);
   }
 
   onSuccess = querySnapshot => {
     if (querySnapshot.size === 0) {
       console.warn('Found 0 diary entries for today.');
-      this.setState({diaryData: 'empty'});
+      this.setState({ diaryData: 'empty' });
     } else if (querySnapshot.size > 1) {
       console.warn('Found over 1 diary entries for today.');
       querySnapshot.forEach(documentSnapshot => {
-        this.setState({diaryData: documentSnapshot});
+        this.setState({ diaryData: documentSnapshot });
       });
     } else {
       querySnapshot.forEach(documentSnapshot => {
-        this.setState({diaryData: documentSnapshot});
+        this.setState({ diaryData: documentSnapshot });
       });
     }
   };
@@ -196,7 +194,7 @@ export class EmotivityScreen extends React.Component {
   onSuccessMoodTracking = querySnapshot => {
     if (querySnapshot.size === 0) {
       console.warn('Emotivity Weekly: 0 results found.');
-      this.setState({weeklyEmotivityData: 'empty'});
+      this.setState({ weeklyEmotivityData: 'empty' });
     } else {
       let count = 0;
       const scores = {
@@ -245,7 +243,7 @@ export class EmotivityScreen extends React.Component {
       scores[EMOTIVITY.DATABASE.FIELDS.TIRED] =
         scores[EMOTIVITY.DATABASE.FIELDS.TIRED] / count;
 
-      this.setState({weeklyEmotivityData: scores});
+      this.setState({ weeklyEmotivityData: scores });
     }
   };
 
@@ -255,7 +253,7 @@ export class EmotivityScreen extends React.Component {
       console.log(documentSnapshot.data());
       entries.push(documentSnapshot);
     });
-    this.setState({weeklyDiaryData: entries});
+    this.setState({ weeklyDiaryData: entries });
   };
 
   renderDrawerAction = (): React.ReactElement => (
@@ -270,7 +268,7 @@ export class EmotivityScreen extends React.Component {
       <View style={styles.buttonCircle}>
         <ArrowIosForwardIcon
           fill={'rgba(255, 255, 255, .9)'}
-          style={{backgroundColor: 'transparent'}}
+          style={{ backgroundColor: 'transparent' }}
         />
       </View>
     );
@@ -281,7 +279,7 @@ export class EmotivityScreen extends React.Component {
       <View style={styles.buttonCircle}>
         <ArrowIosBackIcon
           fill={'rgba(255, 255, 255, .9)'}
-          style={{backgroundColor: 'transparent'}}
+          style={{ backgroundColor: 'transparent' }}
         />
       </View>
     );
@@ -290,7 +288,7 @@ export class EmotivityScreen extends React.Component {
   _renderDoneButton = () => {
     return (
       <View style={styles.buttonCircle}>
-        <CheckIcon style={{backgroundColor: 'transparent'}} />
+        <CheckIcon style={{ backgroundColor: 'transparent' }} />
       </View>
     );
   };
@@ -303,7 +301,7 @@ export class EmotivityScreen extends React.Component {
     this.setState(this.vals);
   };
 
-  emotivitySlide = ({item}) => {
+  emotivitySlide = ({ item }) => {
     return (
       <View
         style={item.type === 'positive' ? styles.pos_slide : styles.neg_slide}>
@@ -311,12 +309,12 @@ export class EmotivityScreen extends React.Component {
         <Image
           style={[
             this.state[item.key] == 0
-              ? {transform: [{scale: 0.5}]}
+              ? { transform: [{ scale: 0.5 }] }
               : {
-                  transform: [
-                    {scale: parseInt(this.state[item.key]) * 0.15 + 0.5},
-                  ],
-                },
+                transform: [
+                  { scale: parseInt(this.state[item.key]) * 0.15 + 0.5 },
+                ],
+              },
             styles.icon,
           ]}
           source={item.image}
@@ -339,10 +337,10 @@ export class EmotivityScreen extends React.Component {
             justifyContent: 'space-between',
             width: '68%',
           }}>
-          <Text style={[styles.hint, {textAlign: 'left'}]}>
+          <Text style={[styles.hint, { textAlign: 'left' }]}>
             {item.labels.min}
           </Text>
-          <Text style={[styles.hint, {textAlign: 'right'}]}>
+          <Text style={[styles.hint, { textAlign: 'right' }]}>
             {item.labels.max}
           </Text>
         </View>
@@ -406,19 +404,19 @@ export class EmotivityScreen extends React.Component {
 
   renderPromptModal = () => (
     <Layout level="3" style={styles.modalContainer}>
-      <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 8}}>
+      <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>
         🙌 Thank You!
       </Text>
       {this.state.record_type === 'positive' && (
-        <Text style={{textAlign: 'justify'}}>
+        <Text style={{ textAlign: 'justify' }}>
           Seems like you've had a good day 😄. That's great to hear! Would you
           like to make a note on today's events and reflect on them?
         </Text>
       )}
       {this.state.record_type === 'negative' && (
-        <Text style={{textAlign: 'justify'}}>
+        <Text style={{ textAlign: 'justify' }}>
           We noticed that you have felt a noticable amount of
-          <Text style={{color: '#712177', fontWeight: 'bold'}}>
+          <Text style={{ color: '#712177', fontWeight: 'bold' }}>
             {' '}
             {this.state.mood_string}{' '}
           </Text>
@@ -454,11 +452,11 @@ export class EmotivityScreen extends React.Component {
   );
 
   setSelectedIndex = index => {
-    this.setState({selectedIndex: index});
+    this.setState({ selectedIndex: index });
   };
 
   toggleTooltip = () => {
-    this.setState({visible: !this.state.visible});
+    this.setState({ visible: !this.state.visible });
   };
 
   renderIcon = style => (
@@ -467,85 +465,85 @@ export class EmotivityScreen extends React.Component {
 
   renderQuestionsModal = () => (
     <Layout level="3" style={styles.modalContainer}>
-      <View style={{flexDirection: 'row'}}>
-        <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 8}}>
-          📝 New Diary Entry
-        </Text>
+      <View style={{ flexDirection: 'row' }}>
+      <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 8}}>
+      📝 New Diary Entry
+      </Text>
       <Input
-        style={styles.input}
-        textStyle={styles.inputText}
-        labelStyle={styles.label}
-        label="What happened:"
-        placeholder="I felt very anxious"
-        onChangeText={t => this.setState({q1: t})}
-        value={this.state.q1}
+      style={styles.input}
+      textStyle={styles.inputText}
+      labelStyle={styles.label}
+      label="What happened:"
+      placeholder="I felt very anxious"
+      onChangeText={t => this.setState({q1: t})}
+      value={this.state.q1}
       />
       <Input
-        style={styles.input}
-        textStyle={styles.inputText}
-        labelStyle={styles.label}
-        label="Location:"
-        placeholder="At home"
-        onChangeText={t => this.setState({q2: t})}
-        value={this.state.q2}
+      style={styles.input}
+      textStyle={styles.inputText}
+      labelStyle={styles.label}
+      label="Location:"
+      placeholder="At home"
+      onChangeText={t => this.setState({q2: t})}
+      value={this.state.q2}
       />
       <Input
-        style={styles.input}
-        textStyle={styles.inputText}
-        labelStyle={styles.label}
-        label="Your thoughts at the time:"
-        placeholder="My thesis submission is due next week and i don't think that i would be able to finish it on time."
-        multiline={true}
-        numberOfLines={3}
-        onChangeText={t => this.setState({q3: t})}
-        value={this.state.q3}
+      style={styles.input}
+      textStyle={styles.inputText}
+      labelStyle={styles.label}
+      label="Your thoughts at the time:"
+      placeholder="My thesis submission is due next week and i don't think that i would be able to finish it on time."
+      multiline={true}
+      numberOfLines={3}
+      onChangeText={t => this.setState({q3: t})}
+      value={this.state.q3}
       />
-      {/*<Input placeholder='Your thoughts after reflecting:'/>
+    {/*<Input placeholder='Your thoughts after reflecting:'/>
       <Input placeholder='How you felt after reflecting:'/>*/}
       <View
-        style={{
-          flex: 1,
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-        }}>
-        <Button
-          style={[styles.buttonHalf]}
-          status="primary"
-          onPress={this.reflectNowButton}>
-          Reflect Now
-        </Button>
-        <Button
-          style={[styles.buttonHalf]}
-          status="primary"
-          onPress={this.reflectLaterButton}>
-          Reflect Later
-        </Button>
+      style={{
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    }}>
+      <Button
+      style={[styles.buttonHalf]}
+      status="primary"
+      onPress={this.reflectNowButton}>
+      Reflect Now
+      </Button>
+      <Button
+      style={[styles.buttonHalf]}
+      status="primary"
+      onPress={this.reflectLaterButton}>
+      Reflect Later
+      </Button>
       </View>
       <View
-        style={{
-          flex: 1,
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-        }}>
-        <Button
-          style={[styles.buttonFull]}
-          status="warning"
-          onPress={this.diarySkipButton}>
-          Skip
-        </Button>
+      style={{
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    }}>
+      <Button
+      style={[styles.buttonFull]}
+      status="warning"
+      onPress={this.diarySkipButton}>
+      Skip
+      </Button>
       </View>
     </Layout>
   );
 
   renderReflectModal = () => (
     <Layout level="3" style={styles.modalContainer}>
-      <View style={{flexDirection: 'row'}}>
-        <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 8}}>
+      <View style={{ flexDirection: 'row' }}>
+        <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>
           🤔 Today's Reflection
         </Text>
       </View>
 
-      <Text style={{textAlign: 'justify', marginBottom: 8}}>
+      <Text style={{ textAlign: 'justify', marginBottom: 8 }}>
         Explain the role of the diary entry briefly. about reclecting etc.
       </Text>
       <Input
@@ -557,7 +555,7 @@ export class EmotivityScreen extends React.Component {
         multiline={true}
         size="small"
         numberOfLines={5}
-        onChangeText={t => this.setState({q4: t})}
+        onChangeText={t => this.setState({ q4: t })}
         value={this.state.q4}
       />
       <View
@@ -602,7 +600,7 @@ export class EmotivityScreen extends React.Component {
         question: {
           text: DIARY.DATABASE.QUESTIONS.Q1,
         },
-       answer: {
+        answer: {
           text: this.state.q1,
           time: Date.now(),
         },
@@ -613,7 +611,7 @@ export class EmotivityScreen extends React.Component {
         question: {
           text: DIARY.DATABASE.QUESTIONS.Q2,
         },
-       answer: {
+        answer: {
           text: this.state.q2,
           time: Date.now(),
         },
@@ -624,7 +622,7 @@ export class EmotivityScreen extends React.Component {
         question: {
           text: DIARY.DATABASE.QUESTIONS.Q3,
         },
-       answer: {
+        answer: {
           text: this.state.q3,
           time: Date.now(),
         },
@@ -632,21 +630,21 @@ export class EmotivityScreen extends React.Component {
     }
 
     const entryDoc: DiaryEntryDoc = {
-       user: this.state.user.uid,
-       conversations: convos as Conversation[],
-       status: 'Incomplete',
-       date: getDateToday('')
+      user: this.state.user.uid,
+      conversations: convos as Conversation[],
+      status: 'Incomplete',
+      date: getDateToday('')
     }
 
     await API.firestore.addNewDiaryEntry(entryDoc);
   };
 
   _sendReflectRequest = (id) => {
-    FirebaseService.addReflection(id, [{
-        question: { text: DIARY.DATABASE.QUESTIONS.Q4 },
-       answer: { text: this.state.q4, time: Date.now() }
-      }
-    ]);
+    API.firestore.addReflection(id, {
+      question: { text: DIARY.DATABASE.QUESTIONS.Q4 },
+      answer: { text: this.state.q4, time: Date.now() }
+    }
+    );
   }
 
   reflectSubmitButton = async () => {
@@ -667,7 +665,7 @@ export class EmotivityScreen extends React.Component {
         question: {
           text: DIARY.DATABASE.QUESTIONS.Q2,
         },
-       answer: {
+        answer: {
           text: this.state.q2,
           time: Date.now(),
         },
@@ -678,7 +676,7 @@ export class EmotivityScreen extends React.Component {
         question: {
           text: DIARY.DATABASE.QUESTIONS.Q3,
         },
-       answer: {
+        answer: {
           text: this.state.q3,
           time: Date.now(),
         },
@@ -703,7 +701,7 @@ export class EmotivityScreen extends React.Component {
     }
     await API.firestore.addNewDiaryEntry(entryDoc)
     await API.firestore.getTodayDiaryEntry(this.onSuccess, this.state.user.uid);
-    this.setState({reflect_visible: !this.state.reflect_visible});
+    this.setState({ reflect_visible: !this.state.reflect_visible });
   };
 
   toggleQuestionsModal = () => {
@@ -721,35 +719,35 @@ export class EmotivityScreen extends React.Component {
   };
 
   reflectNowButton = () => {
-    this.setState({reflect_visible: true, questions_visible: false});
+    this.setState({ reflect_visible: true, questions_visible: false });
   };
 
   laterButton = () => {
-    if(this.state.user){
+    if (this.state.user) {
       this._sendAddDiaryRequest();
       API.firestore.getTodayDiaryEntry(this.onSuccess, this.state.user.uid);
-      this.setState({reflect_visible: false});
+      this.setState({ reflect_visible: false });
     }
   };
 
   backButton = () => {
-    this.setState({reflect_visible: false, questions_visible: true});
+    this.setState({ reflect_visible: false, questions_visible: true });
   };
 
   reflectLaterButton = () => {
-    if(this.state.user){
+    if (this.state.user) {
       this._sendAddDiaryRequest();
       API.firestore.getTodayDiaryEntry(this.onSuccess, this.state.user.uid);
-      this.setState({questions_visible: false});
+      this.setState({ questions_visible: false });
     }
   };
 
   diarySkipButton = () => {
-    this.setState({questions_visible: false});
+    this.setState({ questions_visible: false });
   };
 
   togglePromptModal = () => {
-    this.setState({done: true, prompt_visible: !this.state.prompt_visible});
+    this.setState({ done: true, prompt_visible: !this.state.prompt_visible });
   };
 
   render() {
@@ -946,15 +944,15 @@ export class EmotivityScreen extends React.Component {
                     ],
                     data:
                       this.state.weeklyEmotivityData &&
-                      this.state.weeklyEmotivityData !== 'empty'
+                        this.state.weeklyEmotivityData !== 'empty'
                         ? [
-                            this.state.weeklyEmotivityData.anger / 5,
-                            this.state.weeklyEmotivityData.anxiety / 5,
-                            this.state.weeklyEmotivityData.sadness / 5,
-                            this.state.weeklyEmotivityData.stress / 5,
-                            this.state.weeklyEmotivityData.tired / 5,
-                            this.state.weeklyEmotivityData.happiness / 5,
-                          ]
+                          this.state.weeklyEmotivityData.anger / 5,
+                          this.state.weeklyEmotivityData.anxiety / 5,
+                          this.state.weeklyEmotivityData.sadness / 5,
+                          this.state.weeklyEmotivityData.stress / 5,
+                          this.state.weeklyEmotivityData.tired / 5,
+                          this.state.weeklyEmotivityData.happiness / 5,
+                        ]
                         : [0, 0, 0, 0, 0, 0],
                   }}
                   width={screenWidth}
@@ -1030,7 +1028,7 @@ export class EmotivityScreen extends React.Component {
                   }}>
                   Diary Entries
                 </Text>
-                <View style={{marginBottom: screenHeight / 3.5}}>
+                <View style={{ marginBottom: screenHeight / 3.5 }}>
                   {this.state.weeklyDiaryData.map(entry => (
                     <DiaryEntry entry={entry} />
                   ))}

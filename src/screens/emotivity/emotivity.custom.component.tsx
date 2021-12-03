@@ -1,21 +1,24 @@
+import {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import {Button, Divider, RangeCalendar, Text} from '@ui-kitten/components';
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {Dimensions, StyleSheet} from 'react-native';
 import {ProgressChart} from 'react-native-chart-kit';
 import {ScrollView} from 'react-native-gesture-handler';
-import {FirebaseService} from '../../services/firebase.service';
+import {API} from 'src/refactored-services';
+import {StorageKeys} from 'src/refactored-services/storage.service';
 import {EMOTIVITY} from '../../services/types';
-import {UtilService} from '../../services/util.service';
+import {getDateFromDatabaseDateFormat} from './../../utils/date';
 
 export const EmotivityCustomScreen = ({navigation}): React.ReactElement => {
   let isFirstRingLegend = true;
 
   const screenWidth = Dimensions.get('window').width;
 
-  const [range, setRange] = React.useState({
+  const [range, setRange] = useState({
     startDate: null,
     endDate: null,
   });
+  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
 
   const [weeklyDiaryData, setWeeklyDiaryData] = React.useState([]);
   const [weeklyEmotivityData, setWeeklyEmotivityData] = React.useState({
@@ -28,14 +31,21 @@ export const EmotivityCustomScreen = ({navigation}): React.ReactElement => {
   });
 
   useEffect(() => {
-    if (range.endDate) {
-      FirebaseService.getEmotivityData(
-        range.startDate.getTime(),
-        range.endDate.getTime(),
-        onSuccessMoodTracking,
-        onSuccessDiaryEntry,
+    (async () => {
+      const user = await API.storage.getDataFromStorage<FirebaseAuthTypes.User>(
+        StorageKeys.USER,
       );
-    }
+      setUser(user);
+      if (range.endDate && user) {
+        API.firestore.getEmotivtyData(
+          user.uid,
+          range.startDate.getTime(),
+          range.endDate.getTime(),
+          onSuccessMoodTracking,
+          onSuccessDiaryEntry,
+        );
+      }
+    })();
   }, [range]);
 
   const onSuccessMoodTracking = querySnapshot => {
@@ -140,8 +150,8 @@ export const EmotivityCustomScreen = ({navigation}): React.ReactElement => {
               marginTop: 20,
               textAlign: 'center',
             }}>
-            {UtilService.getDateFromDatabaseDateFormat(range.startDate)} to{' '}
-            {UtilService.getDateFromDatabaseDateFormat(range.endDate)}
+            {getDateFromDatabaseDateFormat(range.startDate)} to{' '}
+            {getDateFromDatabaseDateFormat(range.endDate)}
           </Text>
           <Button
             style={{marginHorizontal: '20%', marginTop: 10}}
